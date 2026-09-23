@@ -35,13 +35,15 @@ jobs:
           cache: false
       - name: install scorer dependencies
         run: |
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
           pip install -r tools/classifier-score/requirements.txt
       - name: score the paired corpus
         run: |
           python tools/classifier-score/score.py \
             --corpus sources/agentdojo/agentdojo-v1.2-pairs.json \
             --model "$MODEL" --positive-label "$POSITIVE_LABEL" --out scores.json
+      - name: record the Python environment
+        run: pip freeze > environment.txt
       - name: compare defenses
         run: go run ./cmd/deveval -corpus pairs -scores scores.json -threshold "$THRESHOLD" | tee results.txt
       - uses: actions/upload-artifact@v6
@@ -50,3 +52,4 @@ jobs:
           path: |
             scores.json
             results.txt
+            environment.txt

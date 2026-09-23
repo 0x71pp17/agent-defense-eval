@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
   pull_request:
+permissions:
+  contents: read
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -40,7 +42,7 @@ jobs:
           cache: false
       - name: gosec
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
           gosec ./...
   corpus:
     runs-on: ubuntu-24.04
