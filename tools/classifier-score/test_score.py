@@ -1,6 +1,6 @@
 import unittest
 
-from score import collect_texts, key, positive_score, score_texts, windows
+from score import collect_texts, key, positive_score, score_texts, window_limit, windows
 
 
 class WordTokenizer:
@@ -46,6 +46,18 @@ class ScoreTests(unittest.TestCase):
     def test_wrong_label_fails_loudly(self):
         with self.assertRaises(SystemExit):
             positive_score([{"label": "SAFE", "score": 1.0}], "INJECTION")
+
+
+class LimitTests(unittest.TestCase):
+    def test_placeholder_tokenizer_limit_falls_back_to_model_positions(self):
+        self.assertEqual(window_limit(1000000000000000019884624838656, 512, 2), 510)
+
+    def test_smaller_of_declared_limits_wins(self):
+        self.assertEqual(window_limit(256, 512, 2), 254)
+
+    def test_no_usable_limit_fails_loudly(self):
+        with self.assertRaises(SystemExit):
+            window_limit(10**30, None, 2)
 
 
 if __name__ == "__main__":

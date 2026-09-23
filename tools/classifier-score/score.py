@@ -14,6 +14,7 @@ import hashlib
 import json
 import platform
 import sys
+import time
 
 
 def key(text):
@@ -51,6 +52,17 @@ def windows(text, tokenizer, size, stride):
         start += stride
 
 
+def window_limit(model_max_length, max_positions, special_tokens):
+    """Return the window size in tokens: the smaller of the tokenizer's declared
+    limit and the model's position embeddings, less the special tokens. A
+    tokenizer that declares no limit reports a very large placeholder, so values
+    outside a plausible range are ignored."""
+    limits = [x for x in (model_max_length, max_positions) if isinstance(x, int) and 0 < x <= 100_000]
+    if not limits:
+        raise SystemExit("cannot determine the model's input limit from its tokenizer or config")
+    return min(limits) - special_tokens
+
+
 def positive_score(result, label):
     for item in result:
         if item["label"] == label:
@@ -68,11 +80,18 @@ def score_texts(texts, classify, tokenizer, label, size, stride, batch):
             continue
         for w in windows(text, tokenizer, size, stride):
             pending.append((k, w))
+    print(f"{len(texts)} texts, {len(pending)} windows of at most {size} tokens",
+          file=sys.stderr, flush=True)
+    start = time.monotonic()
     for i in range(0, len(pending), batch):
         chunk = pending[i:i + batch]
         results = classify([w for _, w in chunk])
         for (k, _), result in zip(chunk, results):
             scores[k] = max(scores.get(k, 0.0), positive_score(result, label))
+        done = i + len(chunk)
+        if done == len(pending) or (i // batch) % 10 == 0:
+            print(f"scored {done}/{len(pending)} windows, {time.monotonic() - start:.0f}s",
+                  file=sys.stderr, flush=True)
     return scores
 
 
@@ -101,9 +120,11 @@ def main(argv=None):
 
     tokenizer = AutoTokenizer.from_pretrained(args.model)
     model = AutoModelForSequenceClassification.from_pretrained(args.model)
-    size = tokenizer.model_max_length - tokenizer.num_special_tokens_to_add()
+    special = tokenizer.num_special_tokens_to_add()
+    size = window_limit(tokenizer.model_max_length,
+                        getattr(model.config, "max_position_embeddings", None), special)
     classify = pipeline("text-classification", model=model, tokenizer=tokenizer,
-                        top_k=None, truncation=True, device=-1)
+                        top_k=None, truncation=True, max_length=size + special, device=-1)
 
     with open(args.corpus) as f:
         corpus = json.load(f)
