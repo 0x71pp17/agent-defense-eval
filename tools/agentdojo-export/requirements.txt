@@ -1,0 +1,6 @@
+agentdojo==0.1.35
+# Tool outputs are rendered by PyYAML from pydantic models, so these versions
+# determine the corpus bytes that CI compares against.
+pydantic==2.13.5
+pydantic_core==2.46.5
+PyYAML==6.0.3

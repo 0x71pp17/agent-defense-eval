@@ -1,0 +1,4 @@
+# torch is installed separately from the CPU wheel index; see README.
+transformers>=4.44
+sentencepiece
+protobuf
