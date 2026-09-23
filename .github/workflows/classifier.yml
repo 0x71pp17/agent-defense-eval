@@ -18,19 +18,21 @@ permissions:
   contents: read
 jobs:
   score:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     env:
       MODEL: ${{ inputs.model }}
       POSITIVE_LABEL: ${{ inputs.positive_label }}
       THRESHOLD: ${{ inputs.threshold }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.23'
+          cache: false
       - name: install scorer dependencies
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
@@ -42,7 +44,7 @@ jobs:
             --model "$MODEL" --positive-label "$POSITIVE_LABEL" --out scores.json
       - name: compare defenses
         run: go run ./cmd/deveval -corpus pairs -scores scores.json -threshold "$THRESHOLD" | tee results.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: classifier-scores
           path: |
