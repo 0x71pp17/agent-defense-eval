@@ -44,7 +44,7 @@ jobs:
             --model "$MODEL" --positive-label "$POSITIVE_LABEL" --out scores.json
       - name: compare defenses
         run: go run ./cmd/deveval -corpus pairs -scores scores.json -threshold "$THRESHOLD" | tee results.txt
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: classifier-scores
           path: |
