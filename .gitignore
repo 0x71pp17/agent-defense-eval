@@ -1,0 +1,14 @@
+/deveval
+*.exe
+*.out
+*.test
+coverage.out
+coverage.html
+.idea/
+.vscode/
+.DS_Store
+
+# classifier scorer scratch output; published tables live under sources/agentdojo/scores/
+/scores.json
+/results.txt
+__pycache__/
