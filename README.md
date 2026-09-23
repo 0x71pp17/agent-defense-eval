@@ -11,6 +11,23 @@ primary corpora are derived mechanically from the AgentDojo benchmark
 (arXiv:2406.13352): its task ground truth, and its user and injection task pairs
 replayed with the tool outputs an agent reads.
 
+## Results summary
+
+On the AgentDojo v1.2 user and injection pairs (609 scorable injection pairs, 97
+benign tasks):
+
+| Defense | Attributable blocks | Utility |
+|---|---|---|
+| `flow-guard` | 243 (40%) | 48/97 (49%) |
+| `deny-egress` | 233 (38%) | 46/97 (47%) |
+| prompt-injection classifier, threshold 0.5 | 272 (45%) | 45/97 (46%) |
+| prompt-injection classifier, threshold 0.99 | 348 (57%) | 72/97 (74%) |
+
+The classifier is `protectai/deberta-v3-base-prompt-injection-v2` scoring both
+tool outputs and call arguments. At threshold 0.5 it flags 32 of the 100 clean
+tool outputs read in benign tasks; raising the threshold to 0.99 increases both
+attributable blocks and utility. Definitions and full results follow.
+
 ## The interface
 
 A defense is anything that can rule on a proposed agent tool call:
@@ -171,7 +188,7 @@ Scoring runs where the model can be downloaded: the `classifier` workflow
 (manually triggered) on a GitHub runner, or locally:
 
 ```
-pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
 pip install -r tools/classifier-score/requirements.txt
 make scores MODEL=protectai/deberta-v3-base-prompt-injection-v2 LABEL=INJECTION
 ```

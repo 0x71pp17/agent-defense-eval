@@ -1,4 +1,5 @@
 # torch is installed separately from the CPU wheel index; see README.
-transformers>=4.44
+# Versions match the runtime recorded in the committed score table.
+transformers==5.17.0
 sentencepiece
 protobuf

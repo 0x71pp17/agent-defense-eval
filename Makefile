@@ -34,7 +34,7 @@ corpus:
 	cd tools/agentdojo-export && python3 export.py ../../sources/agentdojo/agentdojo-v1.2.json
 	cd tools/agentdojo-export && python3 pairs.py ../../sources/agentdojo/agentdojo-v1.2-pairs.json
 
-# Needs torch and tools/classifier-score/requirements.txt. MODEL and LABEL select the classifier.
+# Needs torch 2.14.0 (CPU wheel) and tools/classifier-score/requirements.txt. MODEL and LABEL select the classifier.
 MODEL ?= protectai/deberta-v3-base-prompt-injection-v2
 LABEL ?= INJECTION
 scores:
