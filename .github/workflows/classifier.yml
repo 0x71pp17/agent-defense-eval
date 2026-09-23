@@ -1,0 +1,50 @@
+name: classifier
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Hugging Face model id of a prompt-injection classifier
+        default: protectai/deberta-v3-base-prompt-injection-v2
+        required: true
+      positive_label:
+        description: The model's label meaning injection
+        default: INJECTION
+        required: true
+      threshold:
+        description: Decision threshold
+        default: '0.5'
+        required: true
+permissions:
+  contents: read
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    env:
+      MODEL: ${{ inputs.model }}
+      POSITIVE_LABEL: ${{ inputs.positive_label }}
+      THRESHOLD: ${{ inputs.threshold }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: install scorer dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r tools/classifier-score/requirements.txt
+      - name: score the paired corpus
+        run: |
+          python tools/classifier-score/score.py \
+            --corpus sources/agentdojo/agentdojo-v1.2-pairs.json \
+            --model "$MODEL" --positive-label "$POSITIVE_LABEL" --out scores.json
+      - name: compare defenses
+        run: go run ./cmd/deveval -corpus pairs -scores scores.json -threshold "$THRESHOLD" | tee results.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: classifier-scores
+          path: |
+            scores.json
+            results.txt
