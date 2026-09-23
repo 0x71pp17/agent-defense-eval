@@ -26,6 +26,10 @@ type Scenario struct {
 	Task  string
 	Goal  string
 	Trace []Step
+	// Baseline is the same user task's calls in an environment with no
+	// injection, when the corpus records it. It lets the scorer tell whether a
+	// denial was caused by the injection.
+	Baseline []Call
 }
 
 func (s Scenario) injectedCalls() []Call {

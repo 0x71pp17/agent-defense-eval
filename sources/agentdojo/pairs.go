@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/0x71pp17/agent-defense-eval/eval"
 )
@@ -84,6 +85,29 @@ func LoadPairs() (Pairs, error) {
 			sc.Trace = append(sc.Trace, eval.Step{Call: call, Injected: st.Injected})
 		}
 		p.scenarios = append(p.scenarios, sc)
+	}
+	// Link each pair to its benign twin: the same user task in the default
+	// environment. Pair ids extend the twin's id with the injection task.
+	twins := map[string][]eval.Call{}
+	for _, sc := range p.scenarios {
+		if sc.Goal == "" {
+			calls := make([]eval.Call, len(sc.Trace))
+			for i, st := range sc.Trace {
+				calls[i] = st.Call
+			}
+			twins[sc.ID] = calls
+		}
+	}
+	for i, sc := range p.scenarios {
+		if sc.Goal == "" {
+			continue
+		}
+		cut := strings.LastIndex(sc.ID, "-")
+		base, ok := twins[sc.ID[:max(cut, 0)]]
+		if cut < 0 || !ok {
+			return Pairs{}, fmt.Errorf("pair %s has no benign twin", sc.ID)
+		}
+		p.scenarios[i].Baseline = base
 	}
 	return p, nil
 }

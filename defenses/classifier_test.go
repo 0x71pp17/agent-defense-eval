@@ -88,3 +88,22 @@ func TestLoadScoreTable(t *testing.T) {
 		t.Error("missing file: expected an error")
 	}
 }
+
+func TestScoreAndBenignContextFlags(t *testing.T) {
+	table := syntheticTable(map[string]float64{"clean": 0.1, "noisy": 0.9, "attack": 0.99})
+	if s, ok := table.Score("noisy"); !ok || s != 0.9 {
+		t.Errorf("Score(noisy) = %v, %v", s, ok)
+	}
+	if _, ok := table.Score("absent"); ok {
+		t.Error("Score reported a score for an unscored text")
+	}
+	sc := []eval.Scenario{
+		{ID: "benign-a", Trace: []eval.Step{{Call: eval.Call{Context: []string{"clean", "noisy"}}}}},
+		{ID: "benign-b", Trace: []eval.Step{{Call: eval.Call{Context: []string{"noisy"}}}}},
+		{ID: "pair", Goal: "g", Trace: []eval.Step{{Call: eval.Call{Context: []string{"attack"}}}}},
+	}
+	// Distinct benign outputs only: "noisy" counts once, the pair's "attack" not at all.
+	if f, n := BenignContextFlags(table, sc, 0.5); f != 1 || n != 2 {
+		t.Errorf("BenignContextFlags = %d of %d, want 1 of 2", f, n)
+	}
+}

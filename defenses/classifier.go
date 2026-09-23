@@ -113,6 +113,37 @@ func (c Classifier) Decide(call eval.Call) eval.Decision {
 	return eval.Decision{Allowed: true, Reason: "all texts below threshold"}
 }
 
+// Score returns the table's score for a text, and whether the table has one.
+func (t ScoreTable) Score(text string) (float64, bool) {
+	s, ok := t.Scores[TextKey(text)]
+	return s, ok
+}
+
+// BenignContextFlags counts the distinct tool outputs read in benign scenarios,
+// and how many of them score at or above the threshold: the classifier's
+// false-positive surface on legitimate tool output.
+func BenignContextFlags(t ScoreTable, scenarios []eval.Scenario, threshold float64) (flagged, total int) {
+	seen := map[string]bool{}
+	for _, s := range scenarios {
+		if s.Goal != "" {
+			continue
+		}
+		for _, st := range s.Trace {
+			for _, text := range st.Call.Context {
+				if seen[text] {
+					continue
+				}
+				seen[text] = true
+				total++
+				if score, ok := t.Score(text); ok && score >= threshold {
+					flagged++
+				}
+			}
+		}
+	}
+	return flagged, total
+}
+
 // Missing returns the keys of texts in the scenarios that the table does not
 // score, for the classifier's scope. An empty result means full coverage.
 func (c Classifier) Missing(scenarios []eval.Scenario) []string {

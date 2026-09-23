@@ -14,18 +14,18 @@ func TestPublishedPairsResults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string][5]int{ // blocked, halted in task, injections, kept, benign
-		"allow-all":      {0, 0, 609, 97, 97},
-		"deny-all":       {609, 609, 609, 0, 97},
-		"keyword-filter": {34, 18, 609, 94, 97},
-		"deny-egress":    {548, 315, 609, 46, 97},
-		"flow-guard":     {547, 304, 609, 48, 97},
+	want := map[string][6]int{ // blocked, halted in task, attributable, injections, kept, benign
+		"allow-all":      {0, 0, 0, 609, 97, 97},
+		"deny-all":       {609, 609, 0, 609, 0, 97},
+		"keyword-filter": {34, 18, 16, 609, 94, 97},
+		"deny-egress":    {548, 315, 233, 609, 46, 97},
+		"flow-guard":     {547, 304, 243, 609, 48, 97},
 	}
 	set := []eval.Defense{defenses.AllowAll{}, defenses.DenyAll{}, defenses.Keyword{},
 		defenses.NewDenyEgress(p.EgressTools), defenses.NewFlowGuardWith(p.EgressTools, nil)}
 	for _, d := range set {
 		r := eval.Evaluate(d, p.Load())
-		got := [5]int{r.InjectionsBlocked, r.InjectionsHaltedInTask, r.InjectionsTotal, r.BenignKept, r.BenignTotal}
+		got := [6]int{r.InjectionsBlocked, r.InjectionsHaltedInTask, r.InjectionsAttributable, r.InjectionsTotal, r.BenignKept, r.BenignTotal}
 		if got != want[d.Name()] {
 			t.Errorf("%s: got %v, want %v", d.Name(), got, want[d.Name()])
 		}
