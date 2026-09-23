@@ -214,7 +214,7 @@ Observations:
 - Scope `args` sees only the call's own arguments. Its task-call denials are the same with or without the injection, so its 167 attributable blocks are all at injected calls.
 - `context` and `both` produce the same attributable count at 0.5; adding the arguments costs one benign task.
 
-Two independent scoring runs of this model produced scores within 9e-6 of each other, no text changing its decision at any threshold above, and identical results.
+Independent scoring runs of this model produce scores within 9e-6 of the committed table, with no text changing its decision at any threshold above, and identical results.
 
 ## Bundled corpus
 
