@@ -6,6 +6,10 @@ on:
         description: Hugging Face model id of a prompt-injection classifier
         default: protectai/deberta-v3-base-prompt-injection-v2
         required: true
+      revision:
+        description: Model commit to load; the default is the revision behind the published results. Leave empty for the model's current version.
+        default: 90c9989b1a342275dd0d1a95aad283c04e075671
+        required: false
       positive_label:
         description: The model's label meaning injection
         default: INJECTION
@@ -19,9 +23,10 @@ permissions:
 jobs:
   score:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       MODEL: ${{ inputs.model }}
+      REVISION: ${{ inputs.revision }}
       POSITIVE_LABEL: ${{ inputs.positive_label }}
       THRESHOLD: ${{ inputs.threshold }}
     steps:
@@ -41,7 +46,7 @@ jobs:
         run: |
           python tools/classifier-score/score.py \
             --corpus sources/agentdojo/agentdojo-v1.2-pairs.json \
-            --model "$MODEL" --positive-label "$POSITIVE_LABEL" --out scores.json
+            --model "$MODEL" --revision "$REVISION" --positive-label "$POSITIVE_LABEL" --out scores.json
       - name: record the Python environment
         run: pip freeze > environment.txt
       - name: compare defenses
