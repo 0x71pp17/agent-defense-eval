@@ -29,6 +29,8 @@ type report struct {
 }
 
 type classifierReport struct {
+	InjectedDetected     int               `json:"injected_tool_outputs_detected"`
+	InjectedTotal        int               `json:"injected_tool_outputs_total"`
 	Name                 string            `json:"name"`
 	BenignOutputsFlagged int               `json:"benign_tool_outputs_flagged"`
 	BenignOutputsTotal   int               `json:"benign_tool_outputs_total"`
@@ -145,6 +147,7 @@ func main() {
 					Label: table.Label, Runtime: table.Runtime, Chunking: table.Chunking,
 					Thresholds: thresholdSweep(label, table, scenarios)}
 				cr.BenignOutputsFlagged, cr.BenignOutputsTotal = defenses.BenignContextFlags(table, scenarios, *threshold)
+				cr.InjectedDetected, cr.InjectedTotal = defenses.InjectedContextDetections(table, scenarios, p.Marker, *threshold)
 				rep.Classifiers = append(rep.Classifiers, cr)
 			}
 		}
@@ -205,6 +208,8 @@ func main() {
 		fmt.Printf("\n%s: %s (revision %s, positive label %s)\n", c.Name, c.Model, c.Revision, c.Label)
 		fmt.Printf("distinct tool outputs read in benign tasks scoring at or above the threshold: %d of %d\n",
 			c.BenignOutputsFlagged, c.BenignOutputsTotal)
+		fmt.Printf("distinct injected tool outputs scoring at or above the threshold: %d of %d\n",
+			c.InjectedDetected, c.InjectedTotal)
 		fmt.Printf("threshold sweep, scope both:\n")
 		printTable(c.Thresholds)
 	}

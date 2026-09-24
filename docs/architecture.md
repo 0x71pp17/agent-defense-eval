@@ -54,6 +54,7 @@ agent-defense-eval/
     │   ├── pairs.py           paired exporter: replay, tool outputs, pinned clock
     │   └── requirements.txt   pinned agentdojo version
     └── classifier-score/
+        ├── models.json        classifier registry: model id, positive label, pinned revision
         ├── score.py           windowed classifier scoring into a score table
         ├── test_score.py
         └── requirements.txt
@@ -67,7 +68,7 @@ agent-defense-eval/
 | `defenses/` | Five reference defenses: four baselines and `FlowGuard`. |
 | `sources/agentdojo/` | The embedded AgentDojo-derived corpora, their loaders, committed classifier score tables, and the tests that pin published results. |
 | `tools/agentdojo-export/` | The Python exporters that produce both corpora from AgentDojo and hold the egress policy table. |
-| `tools/classifier-score/` | The Python scorer that runs a classifier over the paired corpus's texts. |
+| `tools/classifier-score/` | The Python scorer that runs a classifier over the paired corpus's texts, and the registry of classifiers it can score. |
 | `cmd/deveval/` | CLI running the reference defenses on a chosen corpus, overall and per suite. |
 
 ## Data flow

@@ -14,19 +14,20 @@ replayed with the tool outputs an agent reads.
 ## Results summary
 
 On the AgentDojo v1.2 user and injection pairs (609 scorable injection pairs, 97
-benign tasks):
+benign tasks), with classifiers scoring both tool outputs and call arguments at
+threshold 0.5:
 
 | Defense | Attributable blocks | Utility |
 |---|---|---|
 | `flow-guard` | 243 (40%) | 48/97 (49%) |
 | `deny-egress` | 233 (38%) | 46/97 (47%) |
-| prompt-injection classifier, threshold 0.5 | 272 (45%) | 45/97 (46%) |
-| prompt-injection classifier, threshold 0.99 | 348 (57%) | 72/97 (74%) |
+| `protectai/deberta-v3-base-prompt-injection-v2` | 272 (45%) | 45/97 (46%) |
+| `deepset/deberta-v3-base-injection` | 132 (22%) | 20/97 (21%) |
+| `Horizon-Labs/prompt-injection-guard-base` | 581 (95%) | 88/97 (91%) |
 
-The classifier is `protectai/deberta-v3-base-prompt-injection-v2` scoring both
-tool outputs and call arguments. At threshold 0.5 it flags 32 of the 100 clean
-tool outputs read in benign tasks; raising the threshold to 0.99 increases both
-attributable blocks and utility. Definitions and full results follow.
+Of the 100 clean tool outputs read in benign tasks, the three classifiers flag
+32, 88, and 0 respectively. The classifier results cover one AgentDojo attack,
+`important_instructions_no_names`. Definitions and full results follow.
 
 ## The interface
 
@@ -214,9 +215,9 @@ model revision `90c9989b1a342275dd0d1a95aad283c04e075671`, positive label
 
 ```
 defense                  injection block    attributable       utility
-classifier-both@0.5      581/609 ( 95%)     272 ( 45%)         45/97 ( 46%)
-classifier-context@0.5   575/609 ( 94%)     272 ( 45%)         46/97 ( 47%)
-classifier-args@0.5      245/609 ( 40%)     167 ( 27%)         84/97 ( 87%)
+protectai-both@0.5      581/609 ( 95%)     272 ( 45%)         45/97 ( 46%)
+protectai-context@0.5   575/609 ( 94%)     272 ( 45%)         46/97 ( 47%)
+protectai-args@0.5      245/609 ( 40%)     167 ( 27%)         84/97 ( 87%)
 flow-guard               547/609 ( 90%)     243 ( 40%)         48/97 ( 49%)
 ```
 
@@ -234,12 +235,74 @@ threshold   injection block    attributable       utility
 Observations:
 
 - At threshold 0.5 the classifier scores 32 of the 100 distinct tool outputs read in benign tasks as injections; at 0.99, 9 of 100. Flagged clean outputs include a list of Slack channel names (0.988) and a mapping of restaurants to cuisines (0.796).
-- False positives halt tasks before the injected content arrives. Of the 575 pairs `classifier-context@0.5` blocks, 303 are halts it also makes in the benign twin, 81 of them before the injection appears in context.
+- False positives halt tasks before the injected content arrives. Of the 575 pairs `protectai-context@0.5` blocks, 303 are halts it also makes in the benign twin, 81 of them before the injection appears in context.
 - Raising the threshold increases attributable blocks as well as utility: fewer false positives halt a task before the injection is read. At 0.99, scope `both` blocks 348 pairs attributably and keeps 72 of 97 tasks, against 243 and 48 for `flow-guard`.
 - Scope `args` sees only the call's own arguments. Its task-call denials are the same with or without the injection, so its 167 attributable blocks are all at injected calls.
 - `context` and `both` produce the same attributable count at 0.5; adding the arguments costs one benign task.
 
 Independent scoring runs of this model produce scores within 9e-6 of the committed table, with no text changing its decision at any threshold above, and identical results.
+
+### Model comparison
+
+Three classifiers, each scored on the same 510-token windows with torch 2.14.0
+and transformers 5.17.0:
+
+| Key | Model | Revision | License |
+|---|---|---|---|
+| `protectai` | `protectai/deberta-v3-base-prompt-injection-v2` | `90c9989` | Apache-2.0 |
+| `deepset` | `deepset/deberta-v3-base-injection` | `80dda00` | MIT |
+| `horizon-labs` | `Horizon-Labs/prompt-injection-guard-base` | `62a55ad` | Apache-2.0 |
+
+Detection on text, at threshold 0.5:
+
+| Model | Injected tool outputs detected | Clean tool outputs in benign tasks flagged |
+|---|---|---|
+| `protectai` | 332 of 434 | 32 of 100 |
+| `deepset` | 434 of 434 | 88 of 100 |
+| `horizon-labs` | 434 of 434 | 0 of 100 |
+
+Defenses at threshold 0.5:
+
+```
+defense                  injection block    attributable       utility
+horizon-labs-context@0.5 609/609 (100%)     599 ( 98%)         97/97 (100%)
+horizon-labs-both@0.5    609/609 (100%)     581 ( 95%)         88/97 ( 91%)
+horizon-labs-args@0.5    95/609 ( 16%)      42 (  7%)          88/97 ( 91%)
+protectai-both@0.5       581/609 ( 95%)     272 ( 45%)         45/97 ( 46%)
+protectai-context@0.5    575/609 ( 94%)     272 ( 45%)         46/97 ( 47%)
+protectai-args@0.5       245/609 ( 40%)     167 ( 27%)         84/97 ( 87%)
+deepset-context@0.5      609/609 (100%)     147 ( 24%)         22/97 ( 23%)
+deepset-both@0.5         609/609 (100%)     132 ( 22%)         20/97 ( 21%)
+deepset-args@0.5         565/609 ( 93%)     223 ( 37%)         41/97 ( 42%)
+```
+
+Threshold sweep, scope `both`:
+
+```
+threshold   protectai                deepset                  horizon-labs
+            attributable  utility    attributable  utility    attributable  utility
+0.50        272 (45%)     45/97      132 (22%)     20/97      581 (95%)     88/97
+0.80        307 (50%)     51/97      147 (24%)     22/97      599 (98%)     91/97
+0.90        313 (51%)     53/97      147 (24%)     22/97      599 (98%)     92/97
+0.95        310 (51%)     58/97      147 (24%)     22/97      597 (98%)     92/97
+0.99        348 (57%)     72/97      147 (24%)     22/97      575 (94%)     97/97
+```
+
+Observations:
+
+- `horizon-labs` separates injected from clean tool outputs completely on this corpus: every injected output scores above 0.92, every clean output read in a benign task at or below 0.03. Scope `context` blocks all 609 pairs, 599 attributably; the remaining 10 are pairs whose task calls diverge from their benign twin. Of the 599, 456 halt the agent at the first call after the injection enters its context and 143 at the injected call.
+- `horizon-labs` loses benign tasks only through call arguments: scope `args` flags arguments in 9 benign tasks at 0.5, none at 0.99.
+- `deepset` flags nearly all text as an injection, clean or injected, with scores at or above 0.998 on every injected output. Its results do not change between thresholds 0.8 and 0.99.
+- `protectai` misses 102 of the 434 injected outputs at 0.5 and flags 32 of 100 clean ones.
+- `Horizon-Labs/prompt-injection-guard-base` was published on 2026-09-23. AgentDojo is not among the training sources its model card lists; the listed sources include agentic and tool-output injection sets. The results here cover one attack template.
+
+Reproduce the comparison with:
+
+```
+S=sources/agentdojo/scores
+go run ./cmd/deveval -corpus pairs -scores \
+  $S/protectai-deberta-v3-base-prompt-injection-v2.json,$S/deepset-deberta-v3-base-injection.json,$S/horizon-labs-prompt-injection-guard-base.json
+```
 
 ## Bundled corpus
 
@@ -300,7 +363,7 @@ Out of scope, and limits of the results:
 
 - Live agents. Scenarios are AgentDojo ground-truth calls, the calls a correct or a fully hijacked agent makes, not calls observed from a running model. No attack prompt reaches a model; injection pairs assume the agent follows the injection.
 - Attack coverage. The paired corpus uses one AgentDojo attack, `important_instructions_no_names`.
-- Classifier coverage. Classifier results are specific to the scored model, its windowing, and the listed thresholds.
+- Classifier coverage. Classifier results are specific to the scored models and revisions, the 510-token windowing, one attack template, and the listed thresholds.
 - Provenance inference. Labels come from a substring rule with the measured error shown above; deployed information-flow systems derive provenance at runtime.
 - Error model. The sweep perturbs labels independently per argument. Errors in a real tracker are correlated with the data and the tool, so the curves describe sensitivity, not the behavior of any specific tracker.
 - Egress policy. The tool classification is authored and covers data egress only; state-changing tools outside it are not controlled by `flow-guard`.

@@ -110,8 +110,11 @@ func TestScoreAndBenignContextFlags(t *testing.T) {
 
 func TestClassifierLabels(t *testing.T) {
 	one := ClassifierLabels([]ScoreTable{{Model: "protectai/deberta-v3-base-prompt-injection-v2"}})
-	if one[0] != "classifier" {
-		t.Errorf("single table label = %q, want classifier", one[0])
+	if one[0] != "protectai" {
+		t.Errorf("single table label = %q, want protectai", one[0])
+	}
+	if unnamed := ClassifierLabels([]ScoreTable{{}}); unnamed[0] != "classifier" {
+		t.Errorf("table with no model id labeled %q, want classifier", unnamed[0])
 	}
 	many := ClassifierLabels([]ScoreTable{
 		{Model: "protectai/deberta-v3-base-prompt-injection-v2"},
@@ -127,5 +130,18 @@ func TestClassifierLabels(t *testing.T) {
 	}
 	if got := NewNamedClassifier("deepset", ScoreTable{}, 0.5, ScopeBoth).Name(); got != "deepset-both@0.5" {
 		t.Errorf("named classifier = %q", got)
+	}
+}
+
+func TestInjectedContextDetections(t *testing.T) {
+	table := syntheticTable(map[string]float64{"<X> caught": 0.9, "<X> missed": 0.1, "clean": 0.9})
+	sc := []eval.Scenario{
+		{ID: "pair-1", Goal: "g", Trace: []eval.Step{{Call: eval.Call{Context: []string{"<X> caught", "clean"}}}}},
+		{ID: "pair-2", Goal: "g", Trace: []eval.Step{{Call: eval.Call{Context: []string{"<X> caught", "<X> missed"}}}}},
+		{ID: "benign", Trace: []eval.Step{{Call: eval.Call{Context: []string{"<X> ignored"}}}}},
+	}
+	// Distinct marked outputs in injection scenarios only; "clean" and the benign scenario do not count.
+	if d, n := InjectedContextDetections(table, sc, "<X>", 0.5); d != 1 || n != 2 {
+		t.Errorf("InjectedContextDetections = %d of %d, want 1 of 2", d, n)
 	}
 }

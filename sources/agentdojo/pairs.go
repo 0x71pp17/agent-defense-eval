@@ -52,6 +52,7 @@ type pairsDocument struct {
 type Pairs struct {
 	Source      string
 	Attack      string
+	Marker      string // text that opens every injection the attack produces
 	EgressTools []string
 	Stats       PairStats
 	scenarios   []eval.Scenario
@@ -63,7 +64,7 @@ func LoadPairs() (Pairs, error) {
 	if err := json.Unmarshal(pairsJSON, &d); err != nil {
 		return Pairs{}, fmt.Errorf("parse agentdojo pairs: %w", err)
 	}
-	p := Pairs{Source: d.Source, Attack: d.Attack, EgressTools: d.EgressTools, Stats: d.Stats}
+	p := Pairs{Source: d.Source, Attack: d.Attack, Marker: d.Marker, EgressTools: d.EgressTools, Stats: d.Stats}
 	for _, s := range d.Scenarios {
 		sc := eval.Scenario{ID: s.ID, Suite: eval.Suite(s.Suite), Task: s.Task}
 		injection := s.Kind == "injection"
