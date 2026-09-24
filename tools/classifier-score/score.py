@@ -24,12 +24,14 @@ def key(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def collect_texts(corpus):
+def collect_texts(corpus, benign_only=False):
     """Return {key: text} for every tool output some call reads as context, and
-    every call's argument text."""
+    every call's argument text. With benign_only, only benign scenarios count."""
     texts = {}
     outputs = corpus["outputs"]
     for scenario in corpus["scenarios"]:
+        if benign_only and scenario.get("kind") != "benign":
+            continue
         for step in scenario["trace"]:
             for h in step["context"]:
                 texts[key(outputs[h])] = outputs[h]
@@ -64,6 +66,17 @@ def registry_entry(key, path=REGISTRY):
         raise SystemExit(f"unknown model key {key!r}; known keys are {sorted(registry)}")
     entry = registry[key]
     return entry["model"], entry["positive_label"], entry.get("revision", "")
+
+
+def load_texts(corpus_path, benign_corpus_path=None):
+    """Collect the texts to score from a corpus, plus the benign scenarios of a
+    second corpus when given."""
+    with open(corpus_path) as f:
+        texts = collect_texts(json.load(f))
+    if benign_corpus_path:
+        with open(benign_corpus_path) as f:
+            texts.update(collect_texts(json.load(f), benign_only=True))
+    return texts
 
 
 def window_limit(model_max_length, max_positions, special_tokens, cap=None):
@@ -112,6 +125,8 @@ def score_texts(texts, classify, tokenizer, label, size, stride, batch):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--corpus", required=True)
+    ap.add_argument("--benign-corpus",
+                    help="a corpus whose benign scenarios are scored too, for corpora that reuse its benign tasks")
     ap.add_argument("--list-keys", action="store_true",
                     help="print the sorted keys of the texts to score, then exit")
     ap.add_argument("--model-key", help="a key in models.json; sets --model, --positive-label, and --revision")
@@ -127,8 +142,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     if args.list_keys:
-        with open(args.corpus) as f:
-            print("\n".join(sorted(collect_texts(json.load(f)))))
+        print("\n".join(sorted(load_texts(args.corpus, args.benign_corpus))))
         return
     if args.model_key:
         args.model, args.positive_label, args.revision = registry_entry(args.model_key)
@@ -152,9 +166,7 @@ def main(argv=None):
     classify = pipeline("text-classification", model=model, tokenizer=tokenizer,
                         top_k=None, truncation=True, max_length=size + special, device=-1)
 
-    with open(args.corpus) as f:
-        corpus = json.load(f)
-    texts = collect_texts(corpus)
+    texts = load_texts(args.corpus, args.benign_corpus)
     print(f"scoring {len(texts)} distinct texts with {args.model}", file=sys.stderr)
     scores = score_texts(texts, classify, tokenizer, args.positive_label, size, args.stride, args.batch)
 

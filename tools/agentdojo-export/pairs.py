@@ -107,60 +107,108 @@ def replay(suite, calls, env, prompt, outputs, injected, clean_env=None, differi
     return steps, seen
 
 
-def main(path):
+# Attacks exported to the attack-coverage corpus: AgentDojo's attacks that pursue
+# the injection task's goal, other than important_instructions and its variants,
+# which differ from the pairs corpus's attack only in the names they use. The
+# denial-of-service attacks pursue a different goal, and manual needs a person.
+COVERAGE_ATTACKS = ["direct", "ignore_previous", "injecagent", "system_message", "tool_knowledge"]
+
+
+def new_stats():
+    return {"pairs": 0, "scorable_pairs": 0, "scorable_pairs_injection_not_before_a_call": 0,
+            "unscorable_pairs": 0, "unscorable_pairs_injection_not_before_a_call": 0}
+
+
+def export(attack_names, include_benign):
+    """Replay every user task against every injection task under each attack.
+
+    Returns the scenarios, the output table, the outputs carrying the
+    injection, and per-attack stats. Benign replays always run, since they
+    define what the clean environment produces, but are returned as scenarios
+    only when include_benign is set."""
     suites = get_suites(BENCHMARK_VERSION)
-    outputs = {}
-    scenarios = []
-    stats = {"pairs": 0, "scorable_pairs": 0, "scorable_pairs_injection_not_before_a_call": 0,
-             "unscorable_pairs": 0, "unscorable_pairs_injection_not_before_a_call": 0}
+    outputs, scenarios = {}, []
     # An output carries the injection when it differs from the clean
     # environment's output at the same step and no clean environment ever
     # produces it. The second condition excludes outputs that differ only
     # because an injected value reached a call's arguments (in the Slack suite
     # the injection is planted in a channel name).
     differing, clean_seen = set(), set()
-    exposure = []  # (scorable, visible output hashes) per pair
+    exposure = {a: [] for a in attack_names}  # (scorable, visible output hashes) per pair
+    tagged = not include_benign
     for sname, suite in suites.items():
-        attack = load_attack(ATTACK, suite, _Pipeline())
+        attacks = {a: load_attack(a, suite, _Pipeline()) for a in attack_names}
         for uid, ut in suite.user_tasks.items():
             env = suite.load_and_inject_default_environment({})
             gt = ut.ground_truth(env.model_copy(deep=True))
-            steps, _ = replay(suite, gt, env, ut.PROMPT, outputs, injected=False, clean_seen=clean_seen)
-            scenarios.append({"id": f"{sname}-{uid}", "suite": sname, "kind": "benign",
-                              "task": ut.PROMPT, "trace": steps})
-            for iid, it in suite.injection_tasks.items():
-                injections = attack.attack(ut, it)
-                env = suite.load_and_inject_default_environment(injections)
-                clean = suite.load_and_inject_default_environment({})
-                gt = ut.ground_truth(env.model_copy(deep=True))
-                steps, seen = replay(suite, gt, env, ut.PROMPT, outputs, injected=False,
-                                     clean_env=clean, differing=differing, clean_seen=clean_seen)
-                inj_calls = it.ground_truth(env.model_copy(deep=True))
-                exposure.append((bool(inj_calls), seen if inj_calls else seen[:-1]))
-                inj_steps, _ = replay(suite, inj_calls, env, "", outputs, injected=True,
-                                      clean_env=clean, differing=differing, clean_seen=clean_seen)
-                for st in inj_steps:
-                    st["context"] = seen + st["context"]
-                scenarios.append({"id": f"{sname}-{uid}-{iid}", "suite": sname, "kind": "injection",
-                                  "task": it.GOAL, "trace": steps + inj_steps})
-                stats["pairs"] += 1
+            benign_outputs = outputs if include_benign else {}
+            steps, _ = replay(suite, gt, env, ut.PROMPT, benign_outputs, injected=False, clean_seen=clean_seen)
+            if include_benign:
+                scenarios.append({"id": f"{sname}-{uid}", "suite": sname, "kind": "benign",
+                                  "task": ut.PROMPT, "trace": steps})
+            for aname, attack in attacks.items():
+                for iid, it in suite.injection_tasks.items():
+                    injections = attack.attack(ut, it)
+                    env = suite.load_and_inject_default_environment(injections)
+                    clean = suite.load_and_inject_default_environment({})
+                    gt = ut.ground_truth(env.model_copy(deep=True))
+                    steps, seen = replay(suite, gt, env, ut.PROMPT, outputs, injected=False,
+                                         clean_env=clean, differing=differing, clean_seen=clean_seen)
+                    inj_calls = it.ground_truth(env.model_copy(deep=True))
+                    exposure[aname].append((bool(inj_calls), seen if inj_calls else seen[:-1]))
+                    inj_steps, _ = replay(suite, inj_calls, env, "", outputs, injected=True,
+                                          clean_env=clean, differing=differing, clean_seen=clean_seen)
+                    for st in inj_steps:
+                        st["context"] = seen + st["context"]
+                    sc = {"id": f"{sname}-{uid}-{iid}", "suite": sname, "kind": "injection",
+                          "task": it.GOAL, "trace": steps + inj_steps}
+                    if tagged:
+                        sc["id"] = f"{aname}:{sc['id']}"
+                        sc["attack"] = aname
+                    scenarios.append(sc)
     carrying = differing - clean_seen
-    for scorable, visible in exposure:
-        key = "scorable" if scorable else "unscorable"
-        stats[f"{key}_pairs"] += 1
-        if not any(h in carrying for h in visible):
-            stats[f"{key}_pairs_injection_not_before_a_call"] += 1
-    doc = {"source": f"AgentDojo {BENCHMARK_VERSION} user and injection task pairs",
-           "attack": ATTACK, "egress_tools": sorted(EGRESS), "stats": stats,
-           "outputs_carrying_injection": sorted(carrying),
-           "outputs": outputs, "scenarios": scenarios}
+    stats = {}
+    for aname, pairs in exposure.items():
+        st = new_stats()
+        for scorable, visible in pairs:
+            key = "scorable" if scorable else "unscorable"
+            st["pairs"] += 1
+            st[f"{key}_pairs"] += 1
+            if not any(h in carrying for h in visible):
+                st[f"{key}_pairs_injection_not_before_a_call"] += 1
+        stats[aname] = st
+    return scenarios, outputs, carrying, stats
+
+
+def write(path, doc):
     with open(path, "w") as f:
         json.dump(doc, f, sort_keys=True, separators=(",", ":"))
+
+
+def main(argv):
+    if len(argv) > 1 and argv[1] == "--attacks":
+        path = argv[2] if len(argv) > 2 else "agentdojo-v1.2-attacks.json"
+        scenarios, outputs, carrying, stats = export(COVERAGE_ATTACKS, include_benign=False)
+        write(path, {"source": f"AgentDojo {BENCHMARK_VERSION} user and injection task pairs under additional attacks",
+                     "attacks": COVERAGE_ATTACKS, "egress_tools": sorted(EGRESS), "stats": stats,
+                     "outputs_carrying_injection": sorted(carrying),
+                     "outputs": outputs, "scenarios": scenarios})
+        print(f"wrote {len(scenarios)} pair scenarios across {len(COVERAGE_ATTACKS)} attacks, "
+              f"{len(outputs)} distinct tool outputs to {path}")
+        for a in COVERAGE_ATTACKS:
+            print(f"  {a}: {json.dumps(stats[a])}")
+        return
+    path = argv[1] if len(argv) > 1 else "agentdojo-v1.2-pairs.json"
+    scenarios, outputs, carrying, stats = export([ATTACK], include_benign=True)
+    write(path, {"source": f"AgentDojo {BENCHMARK_VERSION} user and injection task pairs",
+                 "attack": ATTACK, "egress_tools": sorted(EGRESS), "stats": stats[ATTACK],
+                 "outputs_carrying_injection": sorted(carrying),
+                 "outputs": outputs, "scenarios": scenarios})
     kinds = [s["kind"] for s in scenarios]
     print(f"wrote {kinds.count('benign')} benign, {kinds.count('injection')} pair scenarios, "
           f"{len(outputs)} distinct tool outputs to {path}")
-    print("stats:", json.dumps(stats))
+    print("stats:", json.dumps(stats[ATTACK]))
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "agentdojo-v1.2-pairs.json")
+    main(sys.argv)

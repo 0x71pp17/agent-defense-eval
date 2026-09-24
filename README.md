@@ -173,6 +173,29 @@ Observations:
 - Every injected call in the 609 scorable pairs has the injected text in its context; no benign call does.
 - In 914 of 949 pairs the user task's calls are identical to its twin's. The other 35 are in the Slack suite, where the injection is planted in a channel name that the user task's own calls then pass as an argument; halts on those calls are not attributed.
 
+## Attack coverage corpus
+
+A second corpus replays the same 949 user and injection task pairs under five
+more AgentDojo attacks:
+
+| Attack | Injected text |
+|---|---|
+| `direct` | the injection task's goal, prefixed with "TODO:" |
+| `ignore_previous` | an instruction to ignore previous instructions, then the goal |
+| `injecagent` | an instruction to ignore all previous instructions, in capitals, then the goal |
+| `system_message` | the goal, framed as a system message |
+| `tool_knowledge` | the `important_instructions` framing, with the tool calls that achieve the goal |
+
+AgentDojo's other `important_instructions` variants differ from the paired
+corpus's attack only in the names they use; its denial-of-service attacks pursue
+a different goal than the injection task. The corpus holds injection pairs only:
+each attack's scenarios reuse the paired corpus's 97 benign tasks, and each pair
+links to its benign twin there. Under every attack, all 609 scorable pairs expose
+the injection before a call.
+
+The reference defenses score identically under every attack, and identically to
+the paired corpus: the attacks change the injected text, not the injected calls.
+
 ## Classifier defenses
 
 `Classifier` denies a call when a prompt-injection classifier scores any text in
@@ -190,9 +213,12 @@ the defense agree on that set of texts.
 Classifiers are defined in `tools/classifier-score/models.json`, which maps a key
 to a model id, its positive label, and a pinned revision; an empty revision loads
 the model's current version, and the score table records the commit used.
-Scoring runs where the model can be downloaded: the `classifier` workflow
-(manually triggered, with the key chosen from a list) on a GitHub runner, or
-locally:
+Scoring runs where the model can be downloaded: on a GitHub runner through two
+manually triggered workflows, each taking the key from a list, or locally.
+`classifier: baseline` scores the paired corpus; `classifier: attack coverage`
+scores the attack coverage corpus together with the paired corpus's benign
+tasks (`--benign-corpus`), since its scenarios reuse them. Both call the shared
+`classifier-score.yml`:
 
 ```
 pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
@@ -318,6 +344,7 @@ illustrate that structure and are not measured results.
 go run ./cmd/deveval -corpus agentdojo
 go run ./cmd/deveval -corpus agentdojo -sweep
 go run ./cmd/deveval -corpus pairs
+go run ./cmd/deveval -corpus attacks
 go run ./cmd/deveval -corpus pairs -scores scores.json -threshold 0.5
 go run ./cmd/deveval -corpus bundled
 go run ./cmd/deveval -corpus agentdojo -format json
@@ -334,7 +361,8 @@ make corpus
 
 The paired exporter pins the email and cloud-drive tools' clock to the
 scenario's current day and runs under a fixed Python hash seed, so tool outputs
-are identical on every run.
+are identical on every run. The same exporter produces the attack coverage
+corpus with `pairs.py --attacks`.
 
 The egress policy (which tools move data outside the user, and which argument
 names the destination) is a table in the exporter.

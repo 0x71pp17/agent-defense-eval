@@ -36,6 +36,14 @@ class ScoreTests(unittest.TestCase):
         self.assertNotIn(key("never read"), texts)
         self.assertEqual(len(texts), 2)
 
+    def test_benign_only_skips_injection_scenarios(self):
+        corpus = {"outputs": {"b": "benign read", "i": "injected read"},
+                  "scenarios": [
+                      {"kind": "benign", "trace": [{"context": ["b"], "args": []}]},
+                      {"kind": "injection", "trace": [{"context": ["i"], "args": []}]}]}
+        self.assertEqual(set(collect_texts(corpus, benign_only=True)), {key("benign read")})
+        self.assertEqual(len(collect_texts(corpus)), 2)
+
     def test_score_is_max_over_windows_and_empty_is_zero(self):
         def classify(batch):
             return [[{"label": "INJECTION", "score": 0.9 if "x" in w else 0.1},
@@ -83,14 +91,16 @@ class RegistryTests(unittest.TestCase):
         import json
 
         import yaml
-        workflow = os.path.join(os.path.dirname(REGISTRY), "..", "..", ".github", "workflows", "classifier.yml")
-        with open(workflow) as f:
-            doc = yaml.safe_load(f)
-        # PyYAML reads the bare key "on" as True.
-        triggers = doc.get("on", doc.get(True))
-        choices = triggers["workflow_dispatch"]["inputs"]["model"]["options"]
         with open(REGISTRY) as f:
-            self.assertEqual(sorted(choices), sorted(json.load(f)))
+            registry = sorted(json.load(f))
+        workflows = os.path.join(os.path.dirname(REGISTRY), "..", "..", ".github", "workflows")
+        for name in ("classifier-baseline.yml", "classifier-coverage.yml"):
+            with open(os.path.join(workflows, name)) as f:
+                doc = yaml.safe_load(f)
+            # PyYAML reads the bare key "on" as True.
+            triggers = doc.get("on", doc.get(True))
+            choices = triggers["workflow_dispatch"]["inputs"]["model"]["options"]
+            self.assertEqual(sorted(choices), registry, name)
 
 
 if __name__ == "__main__":

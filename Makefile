@@ -1,4 +1,4 @@
-.PHONY: fmt vet test lint sec eval eval-agentdojo eval-pairs sweep corpus scores
+.PHONY: fmt vet test lint sec eval eval-agentdojo eval-pairs eval-attacks sweep corpus scores
 
 fmt:
 	gofmt -w .
@@ -26,6 +26,9 @@ eval-agentdojo:
 eval-pairs:
 	go run ./cmd/deveval -corpus pairs
 
+eval-attacks:
+	go run ./cmd/deveval -corpus attacks
+
 sweep:
 	go run ./cmd/deveval -corpus agentdojo -sweep
 
@@ -33,6 +36,7 @@ corpus:
 	pip install -r tools/agentdojo-export/requirements.txt
 	cd tools/agentdojo-export && python3 export.py ../../sources/agentdojo/agentdojo-v1.2.json
 	cd tools/agentdojo-export && python3 pairs.py ../../sources/agentdojo/agentdojo-v1.2-pairs.json
+	cd tools/agentdojo-export && python3 pairs.py --attacks ../../sources/agentdojo/agentdojo-v1.2-attacks.json
 
 # Needs torch 2.14.0 (CPU wheel) and tools/classifier-score/requirements.txt.
 # MODEL is a key in tools/classifier-score/models.json.

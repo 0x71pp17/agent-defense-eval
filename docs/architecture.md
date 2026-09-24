@@ -12,13 +12,16 @@ agent-defense-eval/
 ├── .golangci.yml
 ├── .github/
 │   └── workflows/
-│       ├── ci.yml             build, lint, security, corpus regeneration and key contract
-│       └── classifier.yml     manual: score the paired corpus with a model
+│       ├── ci.yml             build, lint (Go and workflows), security, corpus regeneration and key contracts
+│       ├── classifier-baseline.yml  manual: score the paired corpus with a model
+│       ├── classifier-coverage.yml  manual: score the attack coverage corpus with a model
+│       └── classifier-score.yml     shared scoring job both call
 ├── docs/
 │   └── architecture.md
 ├── cmd/
 │   └── deveval/
-│       └── main.go            comparison CLI
+│       ├── main.go            comparison CLI
+│       └── attacks.go         per-attack comparison for the attack coverage corpus
 ├── eval/
 │   ├── defense.go             Defense interface, Call, Arg, Decision, Provenance
 │   ├── scenario.go            Scenario, Step, Suite, Source
@@ -39,11 +42,15 @@ agent-defense-eval/
 │       ├── agentdojo-v1.2.json  corpus derived from AgentDojo task ground truth
 │       ├── pairs.go           paired corpus loader, context resolution
 │       ├── agentdojo-v1.2-pairs.json  user and injection task pairs with tool outputs
+│       ├── attacks.go         attack coverage corpus loader, linked to the paired corpus's benign tasks
+│       ├── agentdojo-v1.2-attacks.json  the same pairs under five more attacks
 │       ├── NOTICE             AgentDojo MIT attribution
 │       ├── agentdojo_test.go  corpus shape
 │       ├── results_test.go    published results, deny-egress equivalence
 │       ├── sweep_test.go      sweep endpoints and published sweep points
 │       ├── pairs_test.go      pair shape, injection reaches context
+│       ├── attacks_test.go    attack corpus shape, injection reaches context
+│       ├── attacks_results_test.go  reference defenses are attack-invariant
 │       ├── pairs_results_test.go  published paired results
 │       ├── classifier_results_test.go  published classifier results
 │       ├── scores/            committed classifier score tables
@@ -75,7 +82,8 @@ agent-defense-eval/
 
 ```
 agentdojo (Python) ── export.py ──> agentdojo-v1.2.json ─────┐
-                   └── pairs.py ───> agentdojo-v1.2-pairs.json ┼─(go:embed)─> sources/agentdojo
+                   ├── pairs.py ───> agentdojo-v1.2-pairs.json ┼─(go:embed)─> sources/agentdojo
+                   └── pairs.py --attacks ─> agentdojo-v1.2-attacks.json ┘
                                               │                 │                    │
                               score.py ──> score table ──> Classifier     eval.Evaluate <┘
 ```

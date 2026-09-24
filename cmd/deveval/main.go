@@ -70,12 +70,17 @@ const (
 )
 
 func main() {
-	corpus := flag.String("corpus", "bundled", "scenario corpus: bundled, agentdojo, or pairs")
+	corpus := flag.String("corpus", "bundled", "scenario corpus: bundled, agentdojo, pairs, or attacks")
 	scoresPath := flag.String("scores", "", "pairs only: comma-separated classifier score tables from tools/classifier-score")
 	threshold := flag.Float64("threshold", 0.5, "classifier decision threshold")
 	format := flag.String("format", "text", "output format: text or json")
 	sweep := flag.Bool("sweep", false, "agentdojo only: sweep flow-guard over provenance label errors")
 	flag.Parse()
+
+	if *corpus == "attacks" {
+		runAttacks(*scoresPath, *threshold, *format)
+		return
+	}
 
 	var scenarios []eval.Scenario
 	var set []eval.Defense
@@ -156,8 +161,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "unknown corpus:", *corpus)
 		os.Exit(2)
 	}
-	if *scoresPath != "" && *corpus != "pairs" {
-		fmt.Fprintln(os.Stderr, "-scores applies only to -corpus pairs")
+	if *scoresPath != "" && *corpus != "pairs" && *corpus != "attacks" {
+		fmt.Fprintln(os.Stderr, "-scores applies only to -corpus pairs or attacks")
 		os.Exit(2)
 	}
 	rep.Comparison = eval.Compare(set, scenarios)
