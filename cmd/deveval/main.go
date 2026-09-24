@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/0x71pp17/agent-defense-eval/defenses"
 	"github.com/0x71pp17/agent-defense-eval/eval"
@@ -24,10 +25,11 @@ type report struct {
 	Unscorable  []string                 `json:"unscorable,omitempty"`
 	Corrected   *eval.Result             `json:"flow_guard_corrected_labels,omitempty"`
 	Sweep       *sweepReport             `json:"flow_guard_label_sweep,omitempty"`
-	Classifier  *classifierReport        `json:"classifier,omitempty"`
+	Classifiers []classifierReport       `json:"classifiers,omitempty"`
 }
 
 type classifierReport struct {
+	Name                 string            `json:"name"`
 	BenignOutputsFlagged int               `json:"benign_tool_outputs_flagged"`
 	BenignOutputsTotal   int               `json:"benign_tool_outputs_total"`
 	Model                string            `json:"model"`
@@ -41,10 +43,10 @@ type classifierReport struct {
 var classifierThresholds = []float64{0.5, 0.8, 0.9, 0.95, 0.99}
 
 // thresholdSweep scores the context-and-arguments classifier at each threshold.
-func thresholdSweep(table defenses.ScoreTable, scenarios []eval.Scenario) []eval.Result {
+func thresholdSweep(label string, table defenses.ScoreTable, scenarios []eval.Scenario) []eval.Result {
 	out := make([]eval.Result, 0, len(classifierThresholds))
 	for _, t := range classifierThresholds {
-		out = append(out, eval.Evaluate(defenses.NewClassifier(table, t, defenses.ScopeBoth), scenarios))
+		out = append(out, eval.Evaluate(defenses.NewNamedClassifier(label, table, t, defenses.ScopeBoth), scenarios))
 	}
 	return out
 }
@@ -67,7 +69,7 @@ const (
 
 func main() {
 	corpus := flag.String("corpus", "bundled", "scenario corpus: bundled, agentdojo, or pairs")
-	scoresPath := flag.String("scores", "", "pairs only: classifier score table from tools/classifier-score")
+	scoresPath := flag.String("scores", "", "pairs only: comma-separated classifier score tables from tools/classifier-score")
 	threshold := flag.Float64("threshold", 0.5, "classifier decision threshold")
 	format := flag.String("format", "text", "output format: text or json")
 	sweep := flag.Bool("sweep", false, "agentdojo only: sweep flow-guard over provenance label errors")
@@ -118,25 +120,33 @@ func main() {
 		set = []eval.Defense{defenses.AllowAll{}, defenses.DenyAll{}, defenses.Keyword{},
 			defenses.NewDenyEgress(p.EgressTools), defenses.NewFlowGuardWith(p.EgressTools, nil)}
 		if *scoresPath != "" {
-			table, err := defenses.LoadScoreTable(*scoresPath)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(2)
+			paths := strings.Split(*scoresPath, ",")
+			tables := make([]defenses.ScoreTable, len(paths))
+			for i, path := range paths {
+				table, err := defenses.LoadScoreTable(strings.TrimSpace(path))
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					os.Exit(2)
+				}
+				tables[i] = table
 			}
-			both := defenses.NewClassifier(table, *threshold, defenses.ScopeBoth)
-			if missing := both.Missing(scenarios); len(missing) > 0 {
-				fmt.Fprintf(os.Stderr, "score table %s does not cover this corpus: %d texts unscored\n", *scoresPath, len(missing))
-				os.Exit(2)
+			for i, label := range defenses.ClassifierLabels(tables) {
+				table := tables[i]
+				both := defenses.NewNamedClassifier(label, table, *threshold, defenses.ScopeBoth)
+				if missing := both.Missing(scenarios); len(missing) > 0 {
+					fmt.Fprintf(os.Stderr, "score table %s does not cover this corpus: %d texts unscored\n", paths[i], len(missing))
+					os.Exit(2)
+				}
+				set = append(set,
+					defenses.NewNamedClassifier(label, table, *threshold, defenses.ScopeContext),
+					defenses.NewNamedClassifier(label, table, *threshold, defenses.ScopeArgs),
+					both)
+				cr := classifierReport{Name: label, Model: table.Model, Revision: table.Revision,
+					Label: table.Label, Runtime: table.Runtime, Chunking: table.Chunking,
+					Thresholds: thresholdSweep(label, table, scenarios)}
+				cr.BenignOutputsFlagged, cr.BenignOutputsTotal = defenses.BenignContextFlags(table, scenarios, *threshold)
+				rep.Classifiers = append(rep.Classifiers, cr)
 			}
-			set = append(set,
-				defenses.NewClassifier(table, *threshold, defenses.ScopeContext),
-				defenses.NewClassifier(table, *threshold, defenses.ScopeArgs),
-				both)
-			rep.Classifier = &classifierReport{Model: table.Model, Revision: table.Revision,
-				Label: table.Label, Runtime: table.Runtime, Chunking: table.Chunking,
-				Thresholds: thresholdSweep(table, scenarios)}
-			rep.Classifier.BenignOutputsFlagged, rep.Classifier.BenignOutputsTotal =
-				defenses.BenignContextFlags(table, scenarios, *threshold)
 		}
 		rep.BySuite = bySuite(set, scenarios)
 	default:
@@ -191,9 +201,8 @@ func main() {
 			sw.Stripped.InjectionsBlocked, sw.Stripped.InjectionsTotal, sw.Stripped.BlockRate()*100,
 			sw.Stripped.BenignKept, sw.Stripped.BenignTotal, sw.Stripped.UtilityRate()*100)
 	}
-	if rep.Classifier != nil {
-		c := rep.Classifier
-		fmt.Printf("\nclassifier: %s (revision %s, positive label %s)\n", c.Model, c.Revision, c.Label)
+	for _, c := range rep.Classifiers {
+		fmt.Printf("\n%s: %s (revision %s, positive label %s)\n", c.Name, c.Model, c.Revision, c.Label)
 		fmt.Printf("distinct tool outputs read in benign tasks scoring at or above the threshold: %d of %d\n",
 			c.BenignOutputsFlagged, c.BenignOutputsTotal)
 		fmt.Printf("threshold sweep, scope both:\n")

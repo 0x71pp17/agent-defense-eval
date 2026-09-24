@@ -1,6 +1,8 @@
 import unittest
 
-from score import collect_texts, key, positive_score, score_texts, window_limit, windows
+import os
+
+from score import REGISTRY, collect_texts, key, positive_score, registry_entry, score_texts, window_limit, windows
 
 
 class WordTokenizer:
@@ -64,6 +66,31 @@ class LimitTests(unittest.TestCase):
     def test_no_usable_limit_fails_loudly(self):
         with self.assertRaises(SystemExit):
             window_limit(10**30, None, 2)
+
+
+class RegistryTests(unittest.TestCase):
+    def test_entry_resolves_model_label_and_revision(self):
+        model, label, revision = registry_entry("protectai")
+        self.assertEqual(model, "protectai/deberta-v3-base-prompt-injection-v2")
+        self.assertEqual(label, "INJECTION")
+        self.assertEqual(revision, "90c9989b1a342275dd0d1a95aad283c04e075671")
+
+    def test_unknown_key_fails_loudly(self):
+        with self.assertRaises(SystemExit):
+            registry_entry("no-such-model")
+
+    def test_workflow_choices_match_registry(self):
+        import json
+
+        import yaml
+        workflow = os.path.join(os.path.dirname(REGISTRY), "..", "..", ".github", "workflows", "classifier.yml")
+        with open(workflow) as f:
+            doc = yaml.safe_load(f)
+        # PyYAML reads the bare key "on" as True.
+        triggers = doc.get("on", doc.get(True))
+        choices = triggers["workflow_dispatch"]["inputs"]["model"]["options"]
+        with open(REGISTRY) as f:
+            self.assertEqual(sorted(choices), sorted(json.load(f)))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,17 @@
+{
+  "deepset": {
+    "model": "deepset/deberta-v3-base-injection",
+    "positive_label": "INJECTION",
+    "revision": ""
+  },
+  "horizon-labs": {
+    "model": "Horizon-Labs/prompt-injection-guard-base",
+    "positive_label": "INJECTION",
+    "revision": ""
+  },
+  "protectai": {
+    "model": "protectai/deberta-v3-base-prompt-injection-v2",
+    "positive_label": "INJECTION",
+    "revision": "90c9989b1a342275dd0d1a95aad283c04e075671"
+  }
+}

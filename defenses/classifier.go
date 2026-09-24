@@ -77,14 +77,50 @@ type Classifier struct {
 }
 
 // NewClassifier returns a Classifier over the table at the given threshold and
-// scope. The name identifies the scope and threshold in results.
+// scope, named "classifier-<scope>@<threshold>".
 func NewClassifier(table ScoreTable, threshold float64, scope Scope) Classifier {
+	return NewNamedClassifier("classifier", table, threshold, scope)
+}
+
+// NewNamedClassifier is NewClassifier with a label in place of "classifier",
+// so results from several models can be told apart.
+func NewNamedClassifier(label string, table ScoreTable, threshold float64, scope Scope) Classifier {
 	return Classifier{
-		name:      fmt.Sprintf("classifier-%s@%g", scope, threshold),
+		name:      fmt.Sprintf("%s-%s@%g", label, scope, threshold),
 		table:     table,
 		threshold: threshold,
 		scope:     scope,
 	}
+}
+
+// ClassifierLabels returns a result label for each table. A single table is
+// labeled "classifier". Several are labeled by model publisher, lowercased,
+// or by the model's name after the publisher when two publishers coincide.
+func ClassifierLabels(tables []ScoreTable) []string {
+	labels := make([]string, len(tables))
+	if len(tables) == 1 {
+		labels[0] = "classifier"
+		return labels
+	}
+	owner := func(model string) string {
+		o, _, _ := strings.Cut(model, "/")
+		return strings.ToLower(o)
+	}
+	count := map[string]int{}
+	for _, t := range tables {
+		count[owner(t.Model)]++
+	}
+	for i, t := range tables {
+		o := owner(t.Model)
+		if count[o] > 1 {
+			_, name, found := strings.Cut(t.Model, "/")
+			if found {
+				o = strings.ToLower(name)
+			}
+		}
+		labels[i] = o
+	}
+	return labels
 }
 
 func (c Classifier) Name() string { return c.name }

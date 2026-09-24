@@ -34,10 +34,10 @@ corpus:
 	cd tools/agentdojo-export && python3 export.py ../../sources/agentdojo/agentdojo-v1.2.json
 	cd tools/agentdojo-export && python3 pairs.py ../../sources/agentdojo/agentdojo-v1.2-pairs.json
 
-# Needs torch 2.14.0 (CPU wheel) and tools/classifier-score/requirements.txt. MODEL and LABEL select the classifier.
-MODEL ?= protectai/deberta-v3-base-prompt-injection-v2
-LABEL ?= INJECTION
+# Needs torch 2.14.0 (CPU wheel) and tools/classifier-score/requirements.txt.
+# MODEL is a key in tools/classifier-score/models.json.
+MODEL ?= protectai
 scores:
 	python3 tools/classifier-score/score.py --corpus sources/agentdojo/agentdojo-v1.2-pairs.json \
-		--model $(MODEL) --positive-label $(LABEL) --out scores.json
+		--model-key $(MODEL) --out scores.json
 	go run ./cmd/deveval -corpus pairs -scores scores.json

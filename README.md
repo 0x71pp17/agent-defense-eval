@@ -184,13 +184,17 @@ the windowing parameters, and library versions. `deveval` refuses a table that
 does not score every text the corpus needs, and CI checks that the scorer and
 the defense agree on that set of texts.
 
+Classifiers are defined in `tools/classifier-score/models.json`, which maps a key
+to a model id, its positive label, and a pinned revision; an empty revision loads
+the model's current version, and the score table records the commit used.
 Scoring runs where the model can be downloaded: the `classifier` workflow
-(manually triggered) on a GitHub runner, or locally:
+(manually triggered, with the key chosen from a list) on a GitHub runner, or
+locally:
 
 ```
 pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
 pip install -r tools/classifier-score/requirements.txt
-make scores MODEL=protectai/deberta-v3-base-prompt-injection-v2 LABEL=INJECTION
+make scores MODEL=protectai
 ```
 
 The positive label is model-specific; the scorer prints the model's labels and

@@ -12,9 +12,12 @@ commit hash, the positive label, the chunking parameters, and library versions.
 import argparse
 import hashlib
 import json
+import os
 import platform
 import sys
 import time
+
+REGISTRY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models.json")
 
 
 def key(text):
@@ -50,6 +53,17 @@ def windows(text, tokenizer, size, stride):
         if start + size >= len(offsets):
             return out
         start += stride
+
+
+def registry_entry(key, path=REGISTRY):
+    """Return the registry's model id, positive label, and revision for a key.
+    An empty revision loads the model's default branch."""
+    with open(path) as f:
+        registry = json.load(f)
+    if key not in registry:
+        raise SystemExit(f"unknown model key {key!r}; known keys are {sorted(registry)}")
+    entry = registry[key]
+    return entry["model"], entry["positive_label"], entry.get("revision", "")
 
 
 def window_limit(model_max_length, max_positions, special_tokens, cap=None):
@@ -100,6 +114,7 @@ def main(argv=None):
     ap.add_argument("--corpus", required=True)
     ap.add_argument("--list-keys", action="store_true",
                     help="print the sorted keys of the texts to score, then exit")
+    ap.add_argument("--model-key", help="a key in models.json; sets --model, --positive-label, and --revision")
     ap.add_argument("--model", help="Hugging Face model id")
     ap.add_argument("--positive-label", help="label meaning injection")
     ap.add_argument("--out")
@@ -115,8 +130,10 @@ def main(argv=None):
         with open(args.corpus) as f:
             print("\n".join(sorted(collect_texts(json.load(f)))))
         return
+    if args.model_key:
+        args.model, args.positive_label, args.revision = registry_entry(args.model_key)
     if not (args.model and args.positive_label and args.out):
-        ap.error("--model, --positive-label and --out are required unless --list-keys is given")
+        ap.error("--model-key or --model and --positive-label, plus --out, are required unless --list-keys is given")
 
     import torch
     import transformers

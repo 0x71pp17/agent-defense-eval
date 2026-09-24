@@ -107,3 +107,25 @@ func TestScoreAndBenignContextFlags(t *testing.T) {
 		t.Errorf("BenignContextFlags = %d of %d, want 1 of 2", f, n)
 	}
 }
+
+func TestClassifierLabels(t *testing.T) {
+	one := ClassifierLabels([]ScoreTable{{Model: "protectai/deberta-v3-base-prompt-injection-v2"}})
+	if one[0] != "classifier" {
+		t.Errorf("single table label = %q, want classifier", one[0])
+	}
+	many := ClassifierLabels([]ScoreTable{
+		{Model: "protectai/deberta-v3-base-prompt-injection-v2"},
+		{Model: "deepset/deberta-v3-base-injection"},
+		{Model: "Horizon-Labs/prompt-injection-guard-base"},
+		{Model: "Horizon-Labs/prompt-injection-guard-small"},
+	})
+	want := []string{"protectai", "deepset", "prompt-injection-guard-base", "prompt-injection-guard-small"}
+	for i := range want {
+		if many[i] != want[i] {
+			t.Errorf("label %d = %q, want %q", i, many[i], want[i])
+		}
+	}
+	if got := NewNamedClassifier("deepset", ScoreTable{}, 0.5, ScopeBoth).Name(); got != "deepset-both@0.5" {
+		t.Errorf("named classifier = %q", got)
+	}
+}
