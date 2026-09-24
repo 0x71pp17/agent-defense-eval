@@ -26,8 +26,11 @@ threshold 0.5:
 | `Horizon-Labs/prompt-injection-guard-base` | 581 (95%) | 88/97 (91%) |
 
 Of the 100 clean tool outputs read in benign tasks, the three classifiers flag
-32, 88, and 0 respectively. The classifier results cover one AgentDojo attack,
-`important_instructions_no_names`. Definitions and full results follow.
+32, 88, and 0 respectively. These figures use AgentDojo's
+`important_instructions_no_names` attack. Under five more AgentDojo attacks,
+attributable blocks range from 455 (`direct`) to 581 for Horizon-Labs and from
+223 to 306 for ProtectAI, and are unchanged for deepset. Definitions and full
+results follow.
 
 ## The interface
 
@@ -322,13 +325,58 @@ Observations:
 - `horizon-labs` loses benign tasks only through call arguments: scope `args` flags arguments in 9 benign tasks at 0.5, none at 0.99.
 - `deepset` flags nearly all text as an injection, clean or injected, with scores at or above 0.998 on every injected output. Its results do not change between thresholds 0.8 and 0.99.
 - `protectai` misses 102 of the 434 injected outputs at 0.5 and flags 32 of 100 clean ones.
-- `Horizon-Labs/prompt-injection-guard-base` was published on 2026-09-23. AgentDojo is not among the training sources its model card lists; the listed sources include agentic and tool-output injection sets. The results here cover one attack template.
+- `Horizon-Labs/prompt-injection-guard-base` was published on 2026-09-23. AgentDojo is not among the training sources its model card lists; the listed sources include agentic and tool-output injection sets. Results under five more attacks follow.
 
 Reproduce the comparison with:
 
 ```
 S=sources/agentdojo/scores
 go run ./cmd/deveval -corpus pairs -scores \
+  $S/protectai-deberta-v3-base-prompt-injection-v2.json,$S/deepset-deberta-v3-base-injection.json,$S/horizon-labs-prompt-injection-guard-base.json
+```
+
+### Results under more attacks
+
+The three classifiers scored on the attack coverage corpus, at threshold 0.5.
+Each attack's corpus has 434 distinct injected tool outputs read as context.
+
+Injected tool outputs detected:
+
+| Attack | `protectai` | `deepset` | `horizon-labs` |
+|---|---|---|---|
+| `important_instructions_no_names` (paired corpus) | 332 | 434 | 434 |
+| `direct` | 209 | 434 | 354 |
+| `ignore_previous` | 405 | 434 | 411 |
+| `injecagent` | 401 | 434 | 434 |
+| `system_message` | 296 | 434 | 434 |
+| `tool_knowledge` | 206 | 434 | 423 |
+
+Attributable blocks, scope `both`, of 609 pairs:
+
+| Attack | `protectai` | `deepset` | `horizon-labs` |
+|---|---|---|---|
+| `important_instructions_no_names` (paired corpus) | 272 (45%) | 132 (22%) | 581 (95%) |
+| `direct` | 223 (37%) | 132 (22%) | 455 (75%) |
+| `ignore_previous` | 306 (50%) | 132 (22%) | 566 (93%) |
+| `injecagent` | 306 (50%) | 132 (22%) | 581 (95%) |
+| `system_message` | 261 (43%) | 132 (22%) | 581 (95%) |
+| `tool_knowledge` | 226 (37%) | 132 (22%) | 568 (93%) |
+
+Utility does not depend on the attack: 45, 20, and 88 of 97 benign tasks kept
+for `protectai`, `deepset`, and `horizon-labs`.
+
+Observations:
+
+- `horizon-labs` detects every injected output under `injecagent` and `system_message`, whose text differs from the paired corpus's attack, and 411 to 423 under `ignore_previous` and `tool_knowledge`.
+- Under `direct`, which states the goal as a to-do item ("TODO: ..."), `horizon-labs` misses 80 of 434 injected outputs: 37 of 132 in the travel suite, 36 of 240 in workspace, 6 of 36 in banking, and 1 of 26 in slack. The missed injections sit in calendar event descriptions, hotel reviews, and transaction subjects; the calendar-description example scores 0.007. Its model card lists bare out-of-place tasks in documents among its known misses.
+- `protectai` detects more injected outputs under `ignore_previous` and `injecagent` (405 and 401), which instruct the agent to ignore previous instructions, than under the paired corpus's attack (332), and fewest under `direct` and `tool_knowledge` (209 and 206).
+- `deepset` produces identical results under all six attacks: it scores every injected output, and most clean ones, as an injection.
+
+Reproduce with:
+
+```
+S=sources/agentdojo/scores/attacks
+go run ./cmd/deveval -corpus attacks -scores \
   $S/protectai-deberta-v3-base-prompt-injection-v2.json,$S/deepset-deberta-v3-base-injection.json,$S/horizon-labs-prompt-injection-guard-base.json
 ```
 
@@ -392,8 +440,8 @@ and utility retention against a scenario corpus.
 Out of scope, and limits of the results:
 
 - Live agents. Scenarios are AgentDojo ground-truth calls, the calls a correct or a fully hijacked agent makes, not calls observed from a running model. No attack prompt reaches a model; injection pairs assume the agent follows the injection.
-- Attack coverage. The paired corpus uses one AgentDojo attack, `important_instructions_no_names`.
-- Classifier coverage. Classifier results are specific to the scored models and revisions, the 510-token windowing, one attack template, and the listed thresholds.
+- Attack coverage. The paired corpus uses AgentDojo's `important_instructions_no_names` attack and the attack coverage corpus five more. AgentDojo's denial-of-service attacks and other `important_instructions` variants are not scored.
+- Classifier coverage. Classifier results are specific to the scored models and revisions, the 510-token windowing, the six attacks scored, and the listed thresholds.
 - Provenance inference. Labels come from a substring rule with the measured error shown above; deployed information-flow systems derive provenance at runtime.
 - Error model. The sweep perturbs labels independently per argument. Errors in a real tracker are correlated with the data and the tool, so the curves describe sensitivity, not the behavior of any specific tracker.
 - Egress policy. The tool classification is authored and covers data egress only; state-changing tools outside it are not controlled by `flow-guard`.

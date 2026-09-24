@@ -50,10 +50,11 @@ agent-defense-eval/
 │       ├── sweep_test.go      sweep endpoints and published sweep points
 │       ├── pairs_test.go      pair shape, injection reaches context
 │       ├── attacks_test.go    attack corpus shape, injection reaches context
-│       ├── attacks_results_test.go  reference defenses are attack-invariant
+│       ├── attacks_results_test.go  attack invariance; published per-attack classifier results
 │       ├── pairs_results_test.go  published paired results
 │       ├── classifier_results_test.go  published classifier results
-│       ├── scores/            committed classifier score tables
+│       ├── scores/            committed classifier score tables for the paired corpus
+│       │   └── attacks/       and for the attack coverage corpus
 │       └── keys_contract_test.go  scorer and defense agree on texts
 └── tools/
     ├── agentdojo-export/
