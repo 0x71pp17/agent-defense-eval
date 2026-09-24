@@ -1,0 +1,68 @@
+name: classifier-score
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: A key in tools/classifier-score/models.json
+        type: string
+        required: true
+      corpus:
+        description: pairs or attacks
+        type: string
+        required: true
+      threshold:
+        description: Decision threshold for the comparison
+        type: string
+        required: true
+      timeout:
+        description: Job timeout in minutes
+        type: number
+        required: true
+permissions:
+  contents: read
+jobs:
+  score:
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ inputs.timeout }}
+    env:
+      MODEL_KEY: ${{ inputs.model }}
+      CORPUS: ${{ inputs.corpus }}
+      THRESHOLD: ${{ inputs.threshold }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.23'
+          cache: false
+      - name: install scorer dependencies
+        run: |
+          pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -r tools/classifier-score/requirements.txt
+      - name: score the selected corpus
+        run: |
+          case "$CORPUS" in
+            attacks)
+              python tools/classifier-score/score.py --model-key "$MODEL_KEY" --out scores.json \
+                --corpus sources/agentdojo/agentdojo-v1.2-attacks.json \
+                --benign-corpus sources/agentdojo/agentdojo-v1.2-pairs.json ;;
+            pairs)
+              python tools/classifier-score/score.py --model-key "$MODEL_KEY" --out scores.json \
+                --corpus sources/agentdojo/agentdojo-v1.2-pairs.json ;;
+            *)
+              echo "unknown corpus: $CORPUS" >&2
+              exit 2 ;;
+          esac
+      - name: record the Python environment
+        run: pip freeze > environment.txt
+      - name: compare defenses
+        run: go run ./cmd/deveval -corpus "$CORPUS" -scores scores.json -threshold "$THRESHOLD" | tee results.txt
+      - uses: actions/upload-artifact@v6
+        with:
+          name: classifier-scores-${{ inputs.model }}-${{ inputs.corpus }}
+          path: |
+            scores.json
+            results.txt
+            environment.txt
