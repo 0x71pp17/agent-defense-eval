@@ -3,21 +3,23 @@ on:
   workflow_dispatch:
     inputs:
       model:
-        description: Hugging Face model id of a prompt-injection classifier
-        default: protectai/deberta-v3-base-prompt-injection-v2
-        required: true
-      revision:
-        description: Model commit to load; the default is the revision behind the published results. Leave empty for the model's current version.
-        default: 90c9989b1a342275dd0d1a95aad283c04e075671
-        required: false
-      positive_label:
-        description: The model's label meaning injection
-        default: INJECTION
-        required: true
+        description: Classifier to score; each choice is defined in tools/classifier-score/models.json
+        type: choice
+        options:
+          - protectai
+          - deepset
+          - horizon-labs
+        default: protectai
       threshold:
-        description: Decision threshold
+        description: Decision threshold for the comparison
+        type: choice
+        options:
+          - '0.5'
+          - '0.8'
+          - '0.9'
+          - '0.95'
+          - '0.99'
         default: '0.5'
-        required: true
 permissions:
   contents: read
 jobs:
@@ -25,9 +27,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
-      MODEL: ${{ inputs.model }}
-      REVISION: ${{ inputs.revision }}
-      POSITIVE_LABEL: ${{ inputs.positive_label }}
+      MODEL_KEY: ${{ inputs.model }}
       THRESHOLD: ${{ inputs.threshold }}
     steps:
       - uses: actions/checkout@v5
@@ -46,14 +46,14 @@ jobs:
         run: |
           python tools/classifier-score/score.py \
             --corpus sources/agentdojo/agentdojo-v1.2-pairs.json \
-            --model "$MODEL" --revision "$REVISION" --positive-label "$POSITIVE_LABEL" --out scores.json
+            --model-key "$MODEL_KEY" --out scores.json
       - name: record the Python environment
         run: pip freeze > environment.txt
       - name: compare defenses
         run: go run ./cmd/deveval -corpus pairs -scores scores.json -threshold "$THRESHOLD" | tee results.txt
       - uses: actions/upload-artifact@v6
         with:
-          name: classifier-scores
+          name: classifier-scores-${{ inputs.model }}
           path: |
             scores.json
             results.txt
