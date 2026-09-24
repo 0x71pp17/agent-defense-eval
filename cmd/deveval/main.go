@@ -147,7 +147,7 @@ func main() {
 					Label: table.Label, Runtime: table.Runtime, Chunking: table.Chunking,
 					Thresholds: thresholdSweep(label, table, scenarios)}
 				cr.BenignOutputsFlagged, cr.BenignOutputsTotal = defenses.BenignContextFlags(table, scenarios, *threshold)
-				cr.InjectedDetected, cr.InjectedTotal = defenses.InjectedContextDetections(table, scenarios, p.Marker, *threshold)
+				cr.InjectedDetected, cr.InjectedTotal = defenses.InjectedContextDetections(table, scenarios, p.CarriesInjection, *threshold)
 				rep.Classifiers = append(rep.Classifiers, cr)
 			}
 		}

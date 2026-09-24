@@ -51,7 +51,7 @@ agent-defense-eval/
 └── tools/
     ├── agentdojo-export/
     │   ├── export.py          ground-truth exporter: provenance labels, diagnostics
-    │   ├── pairs.py           paired exporter: replay, tool outputs, pinned clock
+    │   ├── pairs.py           paired exporter: lockstep replay against a clean environment, pinned clock
     │   └── requirements.txt   pinned agentdojo version
     └── classifier-score/
         ├── models.json        classifier registry: model id, positive label, pinned revision

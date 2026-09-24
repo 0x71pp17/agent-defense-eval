@@ -53,10 +53,7 @@ email_client.datetime = _pinned
 cloud_drive_client.datetime = _pinned
 
 ATTACK = "important_instructions_no_names"
-# Every injection this attack produces opens with this tag. Environment
-# rendering rewrites whitespace and quoting inside the injected text, so exposure
-# is detected by the tag rather than by matching the full string.
-ATTACK_MARKER = "<INFORMATION>"
+
 
 
 class _Pipeline:
@@ -69,7 +66,18 @@ def digest(text):
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
-def replay(suite, calls, env, prompt, outputs, injected):
+def run(runtime, env, fc):
+    result, error = runtime.run_function(env, fc.function, dict(fc.args))
+    return error if error else tool_result_to_str(result)
+
+
+def replay(suite, calls, env, prompt, outputs, injected, clean_env=None, differing=None, clean_seen=None):
+    """Run calls in env, recording each call's context and output.
+
+    With clean_env, every call also runs there in lockstep; an output that
+    differs from the clean environment's output at the same step is added to
+    differing. clean_seen collects every output a clean environment produces:
+    when env is clean itself, or from the lockstep runs."""
     runtime = FunctionsRuntime(suite.tools)
     seen = []
     steps = []
@@ -84,11 +92,18 @@ def replay(suite, calls, env, prompt, outputs, injected):
             "args": [{"name": n, "provenance": prov or label(v, prompt),
                       "text": " ".join(values(v))} for n, v in args.items()],
         })
-        result, error = runtime.run_function(env, fc.function, args)
-        text = error if error else tool_result_to_str(result)
+        text = run(runtime, env, fc)
         h = digest(text)
         outputs[h] = text
         seen.append(h)
+        if clean_env is None:
+            if clean_seen is not None:
+                clean_seen.add(h)
+            continue
+        clean_text = run(runtime, clean_env, fc)
+        clean_seen.add(digest(clean_text))
+        if clean_text != text:
+            differing.add(h)
     return steps, seen
 
 
@@ -98,34 +113,46 @@ def main(path):
     scenarios = []
     stats = {"pairs": 0, "scorable_pairs": 0, "scorable_pairs_injection_not_before_a_call": 0,
              "unscorable_pairs": 0, "unscorable_pairs_injection_not_before_a_call": 0}
+    # An output carries the injection when it differs from the clean
+    # environment's output at the same step and no clean environment ever
+    # produces it. The second condition excludes outputs that differ only
+    # because an injected value reached a call's arguments (in the Slack suite
+    # the injection is planted in a channel name).
+    differing, clean_seen = set(), set()
+    exposure = []  # (scorable, visible output hashes) per pair
     for sname, suite in suites.items():
         attack = load_attack(ATTACK, suite, _Pipeline())
         for uid, ut in suite.user_tasks.items():
             env = suite.load_and_inject_default_environment({})
             gt = ut.ground_truth(env.model_copy(deep=True))
-            steps, _ = replay(suite, gt, env, ut.PROMPT, outputs, injected=False)
+            steps, _ = replay(suite, gt, env, ut.PROMPT, outputs, injected=False, clean_seen=clean_seen)
             scenarios.append({"id": f"{sname}-{uid}", "suite": sname, "kind": "benign",
                               "task": ut.PROMPT, "trace": steps})
             for iid, it in suite.injection_tasks.items():
                 injections = attack.attack(ut, it)
                 env = suite.load_and_inject_default_environment(injections)
+                clean = suite.load_and_inject_default_environment({})
                 gt = ut.ground_truth(env.model_copy(deep=True))
-                steps, seen = replay(suite, gt, env, ut.PROMPT, outputs, injected=False)
+                steps, seen = replay(suite, gt, env, ut.PROMPT, outputs, injected=False,
+                                     clean_env=clean, differing=differing, clean_seen=clean_seen)
                 inj_calls = it.ground_truth(env.model_copy(deep=True))
-                visible = seen if inj_calls else seen[:-1]
-                exposed = any(ATTACK_MARKER in outputs[h] for h in visible)
-                key = "scorable" if inj_calls else "unscorable"
-                stats[f"{key}_pairs"] += 1
-                if not exposed:
-                    stats[f"{key}_pairs_injection_not_before_a_call"] += 1
-                inj_steps, _ = replay(suite, inj_calls, env, "", outputs, injected=True)
+                exposure.append((bool(inj_calls), seen if inj_calls else seen[:-1]))
+                inj_steps, _ = replay(suite, inj_calls, env, "", outputs, injected=True,
+                                      clean_env=clean, differing=differing, clean_seen=clean_seen)
                 for st in inj_steps:
                     st["context"] = seen + st["context"]
                 scenarios.append({"id": f"{sname}-{uid}-{iid}", "suite": sname, "kind": "injection",
                                   "task": it.GOAL, "trace": steps + inj_steps})
                 stats["pairs"] += 1
+    carrying = differing - clean_seen
+    for scorable, visible in exposure:
+        key = "scorable" if scorable else "unscorable"
+        stats[f"{key}_pairs"] += 1
+        if not any(h in carrying for h in visible):
+            stats[f"{key}_pairs_injection_not_before_a_call"] += 1
     doc = {"source": f"AgentDojo {BENCHMARK_VERSION} user and injection task pairs",
-           "attack": ATTACK, "attack_marker": ATTACK_MARKER, "egress_tools": sorted(EGRESS), "stats": stats,
+           "attack": ATTACK, "egress_tools": sorted(EGRESS), "stats": stats,
+           "outputs_carrying_injection": sorted(carrying),
            "outputs": outputs, "scenarios": scenarios}
     with open(path, "w") as f:
         json.dump(doc, f, sort_keys=True, separators=(",", ":"))

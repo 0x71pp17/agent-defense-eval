@@ -2,6 +2,7 @@ package defenses
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/0x71pp17/agent-defense-eval/eval"
@@ -141,7 +142,8 @@ func TestInjectedContextDetections(t *testing.T) {
 		{ID: "benign", Trace: []eval.Step{{Call: eval.Call{Context: []string{"<X> ignored"}}}}},
 	}
 	// Distinct marked outputs in injection scenarios only; "clean" and the benign scenario do not count.
-	if d, n := InjectedContextDetections(table, sc, "<X>", 0.5); d != 1 || n != 2 {
+	carries := func(text string) bool { return strings.HasPrefix(text, "<X>") }
+	if d, n := InjectedContextDetections(table, sc, carries, 0.5); d != 1 || n != 2 {
 		t.Errorf("InjectedContextDetections = %d of %d, want 1 of 2", d, n)
 	}
 }

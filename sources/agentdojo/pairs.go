@@ -24,10 +24,10 @@ type PairStats struct {
 type pairsDocument struct {
 	Source      string            `json:"source"`
 	Attack      string            `json:"attack"`
-	Marker      string            `json:"attack_marker"`
 	EgressTools []string          `json:"egress_tools"`
 	Stats       PairStats         `json:"stats"`
 	Outputs     map[string]string `json:"outputs"`
+	Carrying    []string          `json:"outputs_carrying_injection"`
 	Scenarios   []struct {
 		ID    string `json:"id"`
 		Suite string `json:"suite"`
@@ -52,11 +52,16 @@ type pairsDocument struct {
 type Pairs struct {
 	Source      string
 	Attack      string
-	Marker      string // text that opens every injection the attack produces
 	EgressTools []string
 	Stats       PairStats
 	scenarios   []eval.Scenario
+	carrying    map[string]bool
 }
+
+// CarriesInjection reports whether a tool output text carries the injection:
+// the exporter found it differs from the clean environment's output at the
+// same step, and no clean environment produces it.
+func (p Pairs) CarriesInjection(text string) bool { return p.carrying[text] }
 
 // LoadPairs parses the embedded paired corpus.
 func LoadPairs() (Pairs, error) {
@@ -64,7 +69,15 @@ func LoadPairs() (Pairs, error) {
 	if err := json.Unmarshal(pairsJSON, &d); err != nil {
 		return Pairs{}, fmt.Errorf("parse agentdojo pairs: %w", err)
 	}
-	p := Pairs{Source: d.Source, Attack: d.Attack, Marker: d.Marker, EgressTools: d.EgressTools, Stats: d.Stats}
+	p := Pairs{Source: d.Source, Attack: d.Attack, EgressTools: d.EgressTools, Stats: d.Stats,
+		carrying: map[string]bool{}}
+	for _, h := range d.Carrying {
+		text, ok := d.Outputs[h]
+		if !ok {
+			return Pairs{}, fmt.Errorf("carrying list references missing output %s", h)
+		}
+		p.carrying[text] = true
+	}
 	for _, s := range d.Scenarios {
 		sc := eval.Scenario{ID: s.ID, Suite: eval.Suite(s.Suite), Task: s.Task}
 		injection := s.Kind == "injection"

@@ -180,10 +180,10 @@ func BenignContextFlags(t ScoreTable, scenarios []eval.Scenario, threshold float
 }
 
 // InjectedContextDetections counts the distinct tool outputs carrying the
-// attack marker that injection scenarios read as context, and how many of them
-// score at or above the threshold: the classifier's detection rate on
-// injected content.
-func InjectedContextDetections(t ScoreTable, scenarios []eval.Scenario, marker string, threshold float64) (detected, total int) {
+// injection, as reported by carries, that injection scenarios read as context,
+// and how many of them score at or above the threshold: the classifier's
+// detection rate on injected content.
+func InjectedContextDetections(t ScoreTable, scenarios []eval.Scenario, carries func(string) bool, threshold float64) (detected, total int) {
 	seen := map[string]bool{}
 	for _, s := range scenarios {
 		if s.Goal == "" {
@@ -191,7 +191,7 @@ func InjectedContextDetections(t ScoreTable, scenarios []eval.Scenario, marker s
 		}
 		for _, st := range s.Trace {
 			for _, text := range st.Call.Context {
-				if seen[text] || !strings.Contains(text, marker) {
+				if seen[text] || !carries(text) {
 					continue
 				}
 				seen[text] = true

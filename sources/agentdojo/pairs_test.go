@@ -67,3 +67,27 @@ func TestInjectionReachesContext(t *testing.T) {
 		}
 	}
 }
+
+// For this attack, every injection opens with <INFORMATION>, which gives an
+// independent check on the exporter's clean-environment rule: the outputs it
+// marks as carrying the injection are exactly those containing the tag.
+func TestCarryingMatchesAttackTag(t *testing.T) {
+	p, err := LoadPairs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, s := range p.Load() {
+		for _, st := range s.Trace {
+			for _, c := range st.Call.Context {
+				if seen[c] {
+					continue
+				}
+				seen[c] = true
+				if p.CarriesInjection(c) != strings.Contains(c, "<INFORMATION>") {
+					t.Fatalf("%s: carrying=%v disagrees with the attack tag for output %.60q", s.ID, p.CarriesInjection(c), c)
+				}
+			}
+		}
+	}
+}

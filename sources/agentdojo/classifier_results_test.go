@@ -102,7 +102,7 @@ func TestPublishedClassifierResults(t *testing.T) {
 		if f, n := defenses.BenignContextFlags(table, sc, 0.5); f != m.benignFlagged || n != 100 {
 			t.Errorf("%s: benign tool outputs flagged %d of %d, want %d of 100", m.model, f, n, m.benignFlagged)
 		}
-		if d, n := defenses.InjectedContextDetections(table, sc, p.Marker, 0.5); d != m.injectedCaught || n != 434 {
+		if d, n := defenses.InjectedContextDetections(table, sc, p.CarriesInjection, 0.5); d != m.injectedCaught || n != 434 {
 			t.Errorf("%s: injected tool outputs detected %d of %d, want %d of 434", m.model, d, n, m.injectedCaught)
 		}
 	}

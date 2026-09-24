@@ -152,7 +152,9 @@ Observations:
 The paired corpus replays each of the 97 user tasks in the default environment
 (benign) and in an environment carrying each of the suite's injection tasks under
 AgentDojo's `important_instructions_no_names` attack (949 pairs). Every call
-carries the tool outputs read before it. Pairs whose injection task has no
+carries the tool outputs read before it. An output carries the injection when it
+differs from the clean environment's output at the same step, with both
+environments replayed in lockstep, and no clean environment produces it. Pairs whose injection task has no
 ground-truth tool call are unscored (340), leaving 609.
 
 ```
@@ -169,7 +171,7 @@ Observations:
 - `flow-guard` blocks 547 of 609 pairs; 304 of those halt the user's task on an egress call it denies with or without the injection. 243 blocks are attributable.
 - `deny-egress` blocks one more pair than `flow-guard` and 10 fewer attributably, by denying legitimate egress calls that `flow-guard` allows.
 - Every injected call in the 609 scorable pairs has the injected text in its context; no benign call does.
-- In 914 of 949 pairs the user task's calls are identical to its twin's; in the other 35 the injected content changes the task's calls, and halts on those calls are not attributed.
+- In 914 of 949 pairs the user task's calls are identical to its twin's. The other 35 are in the Slack suite, where the injection is planted in a channel name that the user task's own calls then pass as an argument; halts on those calls are not attributed.
 
 ## Classifier defenses
 
