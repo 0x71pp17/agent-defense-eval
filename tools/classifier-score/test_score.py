@@ -55,6 +55,12 @@ class LimitTests(unittest.TestCase):
     def test_smaller_of_declared_limits_wins(self):
         self.assertEqual(window_limit(256, 512, 2), 254)
 
+    def test_cap_limits_long_context_models(self):
+        self.assertEqual(window_limit(8192, 8192, 2, cap=512), 510)
+
+    def test_cap_above_model_limit_has_no_effect(self):
+        self.assertEqual(window_limit(512, 512, 2, cap=8192), 510)
+
     def test_no_usable_limit_fails_loudly(self):
         with self.assertRaises(SystemExit):
             window_limit(10**30, None, 2)

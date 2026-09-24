@@ -52,12 +52,12 @@ def windows(text, tokenizer, size, stride):
         start += stride
 
 
-def window_limit(model_max_length, max_positions, special_tokens):
-    """Return the window size in tokens: the smaller of the tokenizer's declared
-    limit and the model's position embeddings, less the special tokens. A
-    tokenizer that declares no limit reports a very large placeholder, so values
+def window_limit(model_max_length, max_positions, special_tokens, cap=None):
+    """Return the window size in tokens: the smallest of the tokenizer's declared
+    limit, the model's position embeddings, and the cap, less the special tokens.
+    A tokenizer that declares no limit reports a very large placeholder, so values
     outside a plausible range are ignored."""
-    limits = [x for x in (model_max_length, max_positions) if isinstance(x, int) and 0 < x <= 100_000]
+    limits = [x for x in (model_max_length, max_positions, cap) if isinstance(x, int) and 0 < x <= 100_000]
     if not limits:
         raise SystemExit("cannot determine the model's input limit from its tokenizer or config")
     return min(limits) - special_tokens
@@ -103,6 +103,10 @@ def main(argv=None):
     ap.add_argument("--model", help="Hugging Face model id")
     ap.add_argument("--positive-label", help="label meaning injection")
     ap.add_argument("--out")
+    ap.add_argument("--revision", default="",
+                    help="model commit, branch, or tag to load; empty loads the default branch")
+    ap.add_argument("--max-window", type=int, default=512,
+                    help="cap on window length in tokens, including special tokens")
     ap.add_argument("--stride", type=int, default=256, help="window advance in tokens")
     ap.add_argument("--batch", type=int, default=16)
     args = ap.parse_args(argv)
@@ -118,11 +122,16 @@ def main(argv=None):
     import transformers
     from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
-    model = AutoModelForSequenceClassification.from_pretrained(args.model)
+    # Weights load only from safetensors, and no repository code runs: pickle
+    # weights and remote code can execute during loading.
+    load = {"revision": args.revision or None, "trust_remote_code": False}
+    tokenizer = AutoTokenizer.from_pretrained(args.model, **load)
+    model = AutoModelForSequenceClassification.from_pretrained(args.model, use_safetensors=True, **load)
+    print(f"model labels: {model.config.id2label}", file=sys.stderr, flush=True)
     special = tokenizer.num_special_tokens_to_add()
     size = window_limit(tokenizer.model_max_length,
-                        getattr(model.config, "max_position_embeddings", None), special)
+                        getattr(model.config, "max_position_embeddings", None), special,
+                        cap=args.max_window)
     classify = pipeline("text-classification", model=model, tokenizer=tokenizer,
                         top_k=None, truncation=True, max_length=size + special, device=-1)
 
@@ -135,6 +144,7 @@ def main(argv=None):
     table = {
         "model": args.model,
         "revision": getattr(model.config, "_commit_hash", "") or "",
+        "requested_revision": args.revision,
         "positive_label": args.positive_label,
         "chunking": {"window_tokens": size, "stride_tokens": args.stride},
         "runtime": {"python": platform.python_version(), "torch": torch.__version__,

@@ -193,8 +193,12 @@ pip install -r tools/classifier-score/requirements.txt
 make scores MODEL=protectai/deberta-v3-base-prompt-injection-v2 LABEL=INJECTION
 ```
 
-The positive label is model-specific; the scorer fails and lists the model's
-labels when the given one does not exist. Gated models such as Llama Prompt
+The positive label is model-specific; the scorer prints the model's labels and
+fails when the given one does not exist. `--revision` pins the model commit, and
+the table records both the requested and the resolved revision. Weights load
+only from safetensors files, no repository code runs during loading, and windows
+are capped at 512 tokens by default (`--max-window`) so models with longer
+contexts are scored on the same windows. Gated models such as Llama Prompt
 Guard 2 need a Hugging Face login with the model's license accepted. Published
 score tables are stored under `sources/agentdojo/scores/`.
 
