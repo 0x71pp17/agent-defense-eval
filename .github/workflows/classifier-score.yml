@@ -44,13 +44,17 @@ jobs:
       - name: score the selected corpus
         run: |
           case "$CORPUS" in
+            pairs)
+              python tools/classifier-score/score.py --model-key "$MODEL_KEY" --out scores.json \
+                --corpus sources/agentdojo/agentdojo-v1.2-pairs.json ;;
             attacks)
               python tools/classifier-score/score.py --model-key "$MODEL_KEY" --out scores.json \
                 --corpus sources/agentdojo/agentdojo-v1.2-attacks.json \
                 --benign-corpus sources/agentdojo/agentdojo-v1.2-pairs.json ;;
-            pairs)
+            attacks-framing | attacks-field_split | attacks-leet)
               python tools/classifier-score/score.py --model-key "$MODEL_KEY" --out scores.json \
-                --corpus sources/agentdojo/agentdojo-v1.2-pairs.json ;;
+                --corpus "sources/agentdojo/transformed/agentdojo-v1.2-${CORPUS}.json" \
+                --benign-corpus sources/agentdojo/agentdojo-v1.2-pairs.json ;;
             *)
               echo "unknown corpus: $CORPUS" >&2
               exit 2 ;;
@@ -58,7 +62,15 @@ jobs:
       - name: record the Python environment
         run: pip freeze > environment.txt
       - name: compare defenses
-        run: go run ./cmd/deveval -corpus "$CORPUS" -scores scores.json -threshold "$THRESHOLD" | tee results.txt
+        run: |
+          case "$CORPUS" in
+            attacks-*)
+              # Transformed corpora are analyzed for score drop locally against
+              # the committed baseline tables; the run publishes the score table.
+              echo "corpus $CORPUS scored; run score-drop analysis locally with deveval -corpus $CORPUS" | tee results.txt ;;
+            *)
+              go run ./cmd/deveval -corpus "$CORPUS" -scores scores.json -threshold "$THRESHOLD" | tee results.txt ;;
+          esac
       - uses: actions/upload-artifact@v6
         with:
           name: classifier-scores-${{ inputs.model }}-${{ inputs.corpus }}

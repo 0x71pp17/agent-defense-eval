@@ -67,14 +67,30 @@ jobs:
           python export.py /tmp/agentdojo-v1.2.json
           python pairs.py /tmp/agentdojo-v1.2-pairs.json
           python pairs.py --attacks /tmp/agentdojo-v1.2-attacks.json
+          for f in ../../sources/agentdojo/transformed/agentdojo-v1.2-attacks-*.json; do
+            t=$(basename "$f" .json); t=${t#agentdojo-v1.2-attacks-}
+            python pairs.py --attacks --transform "$t" "/tmp/agentdojo-v1.2-attacks-$t.json"
+          done
           cmp ../../sources/agentdojo/agentdojo-v1.2.json /tmp/agentdojo-v1.2.json
           cmp ../../sources/agentdojo/agentdojo-v1.2-pairs.json /tmp/agentdojo-v1.2-pairs.json
           cmp ../../sources/agentdojo/agentdojo-v1.2-attacks.json /tmp/agentdojo-v1.2-attacks.json
+          for f in ../../sources/agentdojo/transformed/agentdojo-v1.2-attacks-*.json; do
+            t=$(basename "$f" .json); t=${t#agentdojo-v1.2-attacks-}
+            cmp "$f" "/tmp/agentdojo-v1.2-attacks-$t.json"
+          done
       - name: scorer unit tests
         working-directory: tools/classifier-score
         run: python -m unittest -v test_score
+      - name: transform unit tests
+        working-directory: tools/agentdojo-export
+        run: python -m unittest -v test_transforms
       - name: scorer and defense agree on the texts to score
         run: |
           (cd tools/classifier-score && python score.py --corpus ../../sources/agentdojo/agentdojo-v1.2-pairs.json --list-keys) > /tmp/scorer-keys.txt
           (cd tools/classifier-score && python score.py --corpus ../../sources/agentdojo/agentdojo-v1.2-attacks.json --benign-corpus ../../sources/agentdojo/agentdojo-v1.2-pairs.json --list-keys) > /tmp/scorer-attacks-keys.txt
-          SCORER_KEYS_FILE=/tmp/scorer-keys.txt SCORER_ATTACKS_KEYS_FILE=/tmp/scorer-attacks-keys.txt go test -run 'TestScorerKeysMatchDefense' -v ./sources/agentdojo
+          mkdir -p /tmp/tfkeys
+          for f in sources/agentdojo/transformed/agentdojo-v1.2-attacks-*.json; do
+            t=$(basename "$f" .json); t=${t#agentdojo-v1.2-attacks-}
+            (cd tools/classifier-score && python score.py --corpus "../../$f" --benign-corpus ../../sources/agentdojo/agentdojo-v1.2-pairs.json --list-keys) > "/tmp/tfkeys/$t.txt"
+          done
+          SCORER_KEYS_FILE=/tmp/scorer-keys.txt SCORER_ATTACKS_KEYS_FILE=/tmp/scorer-attacks-keys.txt SCORER_TRANSFORM_KEYS_DIR=/tmp/tfkeys go test -run 'TestScorerKeysMatchDefense' -v ./sources/agentdojo
