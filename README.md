@@ -380,6 +380,38 @@ go run ./cmd/deveval -corpus attacks -scores \
   $S/protectai-deberta-v3-base-prompt-injection-v2.json,$S/deepset-deberta-v3-base-injection.json,$S/horizon-labs-prompt-injection-guard-base.json
 ```
 
+## Evasion transforms
+
+The attack coverage corpus can be re-exported with a readable transform applied
+to each injection's payload, to measure how far a classifier's detection depends
+on surface form. Each transform keeps the payload human-readable, so a competent
+agent plausibly still acts on it; the harness runs no agent, so this is
+plausibility, not proof.
+
+| Transform | Rewrite | Round-trip check |
+|---|---|---|
+| `framing` | prefixes the payload with a plain note | the payload is present verbatim |
+| `field_split` | inserts a readable break after each run of spaces | removing the breaks recovers the payload |
+| `leet` | substitutes vowels with digits (i to 1, e to 3, a to 4, o to 0) | inverting the substituted letters recovers the payload; digits already present are left alone |
+
+Each transform is paired with the check above, which the corpus build asserts; a
+transform whose check fails, or whose output the environment cannot render, fails
+the build rather than producing a corpus. The identity transform reproduces the
+attack coverage corpus byte for byte, so the machinery changes nothing on its
+own.
+
+`deveval -corpus attacks-<transform> -scores <transformed tables> -baseline-scores <baseline tables>`
+reports, per model, the score drop on the injection-carrying outputs the
+transform changed: the classifier's score on the baseline output minus its score
+on the transformed one, as a distribution, with the count that crosses from at or
+above the threshold to below it. The reference defenses are unaffected by
+construction, since the transforms change the injected text, not the injected
+calls.
+
+Transformed corpora are committed under `sources/agentdojo/transformed/` as they
+are scored; a transform is available in the tooling only when its corpus is
+committed.
+
 ## Bundled corpus
 
 A small illustrative corpus of 10 scenarios ships in `eval/scenarios.go`, written

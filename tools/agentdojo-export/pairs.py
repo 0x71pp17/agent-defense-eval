@@ -32,6 +32,7 @@ from agentdojo.task_suite.load_suites import get_suites
 
 from agentdojo.default_suites.v1.tools import cloud_drive_client, email_client
 from export import BENCHMARK_VERSION, EGRESS, dest_of, label, values
+from transforms import apply_transform
 
 # The email and cloud-drive tools stamp sent mail and modified files with the
 # wall clock. The clock is pinned to the scenario's current day, 2024-05-15, so
@@ -119,7 +120,7 @@ def new_stats():
             "unscorable_pairs": 0, "unscorable_pairs_injection_not_before_a_call": 0}
 
 
-def export(attack_names, include_benign):
+def export(attack_names, include_benign, transform="identity"):
     """Replay every user task against every injection task under each attack.
 
     Returns the scenarios, the output table, the outputs carrying the
@@ -148,8 +149,16 @@ def export(attack_names, include_benign):
                                   "task": ut.PROMPT, "trace": steps})
             for aname, attack in attacks.items():
                 for iid, it in suite.injection_tasks.items():
-                    injections = attack.attack(ut, it)
-                    env = suite.load_and_inject_default_environment(injections)
+                    original_goal = it.GOAL
+                    it.GOAL = apply_transform(transform, original_goal)
+                    try:
+                        injections = attack.attack(ut, it)
+                        # The environment is rendered to YAML with the injection
+                        # inside it; a transform that produces unrenderable text
+                        # fails here rather than silently corrupting the corpus.
+                        env = suite.load_and_inject_default_environment(injections)
+                    finally:
+                        it.GOAL = original_goal
                     clean = suite.load_and_inject_default_environment({})
                     gt = ut.ground_truth(env.model_copy(deep=True))
                     steps, seen = replay(suite, gt, env, ut.PROMPT, outputs, injected=False,
@@ -187,10 +196,14 @@ def write(path, doc):
 
 def main(argv):
     if len(argv) > 1 and argv[1] == "--attacks":
-        path = argv[2] if len(argv) > 2 else "agentdojo-v1.2-attacks.json"
-        scenarios, outputs, carrying, stats = export(COVERAGE_ATTACKS, include_benign=False)
+        rest = argv[2:]
+        transform = "identity"
+        if rest and rest[0] == "--transform":
+            transform, rest = rest[1], rest[2:]
+        path = rest[0] if rest else "agentdojo-v1.2-attacks.json"
+        scenarios, outputs, carrying, stats = export(COVERAGE_ATTACKS, include_benign=False, transform=transform)
         write(path, {"source": f"AgentDojo {BENCHMARK_VERSION} user and injection task pairs under additional attacks",
-                     "attacks": COVERAGE_ATTACKS, "egress_tools": sorted(EGRESS), "stats": stats,
+                     "attacks": COVERAGE_ATTACKS, "transform": transform, "egress_tools": sorted(EGRESS), "stats": stats,
                      "outputs_carrying_injection": sorted(carrying),
                      "outputs": outputs, "scenarios": scenarios})
         print(f"wrote {len(scenarios)} pair scenarios across {len(COVERAGE_ATTACKS)} attacks, "

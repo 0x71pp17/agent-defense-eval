@@ -70,7 +70,8 @@ const (
 )
 
 func main() {
-	corpus := flag.String("corpus", "bundled", "scenario corpus: bundled, agentdojo, pairs, or attacks")
+	corpus := flag.String("corpus", "bundled", "scenario corpus: bundled, agentdojo, pairs, attacks, or attacks-<transform>")
+	baselineScores := flag.String("baseline-scores", "", "attacks-<transform>: baseline attack-corpus tables, one per model, matching -scores order")
 	scoresPath := flag.String("scores", "", "pairs only: comma-separated classifier score tables from tools/classifier-score")
 	threshold := flag.Float64("threshold", 0.5, "classifier decision threshold")
 	format := flag.String("format", "text", "output format: text or json")
@@ -79,6 +80,10 @@ func main() {
 
 	if *corpus == "attacks" {
 		runAttacks(*scoresPath, *threshold, *format)
+		return
+	}
+	if t, ok := strings.CutPrefix(*corpus, "attacks-"); ok {
+		runDrop(t, *scoresPath, *baselineScores, *threshold, *format)
 		return
 	}
 
