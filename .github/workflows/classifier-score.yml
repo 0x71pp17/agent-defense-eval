@@ -71,7 +71,7 @@ jobs:
             *)
               go run ./cmd/deveval -corpus "$CORPUS" -scores scores.json -threshold "$THRESHOLD" | tee results.txt ;;
           esac
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: classifier-scores-${{ inputs.model }}-${{ inputs.corpus }}
           path: |
