@@ -56,7 +56,8 @@ agent-defense-eval/
 │       ├── pairs_results_test.go  published paired results
 │       ├── classifier_results_test.go  published classifier results
 │       ├── scores/            committed classifier score tables for the paired corpus
-│       │   └── attacks/       and for the attack coverage corpus
+│       │   ├── attacks/       and for the attack coverage corpus
+│       │   └── transformed/   and for the evasion transforms
 │       └── keys_contract_test.go  scorer and defense agree on texts
 └── tools/
     ├── agentdojo-export/

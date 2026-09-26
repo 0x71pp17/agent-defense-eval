@@ -1,7 +1,7 @@
 # agent-defense-eval
 
-![CI](https://github.com/0x71pp17/agent-defense-eval/actions/workflows/ci.yml/badge.svg)
 ![Go](https://img.shields.io/badge/Go-1.23-00ADD8?logo=go&logoColor=white)
+![CI](https://github.com/0x71pp17/agent-defense-eval/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 An evaluation harness for agent-authorization defenses. It scores any defense on
@@ -409,8 +409,30 @@ construction, since the transforms change the injected text, not the injected
 calls.
 
 Transformed corpora are committed under `sources/agentdojo/transformed/` as they
-are scored; a transform is available in the tooling only when its corpus is
-committed.
+are scored, and their score tables under `sources/agentdojo/scores/transformed/`;
+a transform is available in the tooling only when its corpus is committed. The
+results these tables produce are pinned by tests.
+
+## Evasion transform results
+
+The three readable transforms scored against ProtectAI and Horizon-Labs at
+threshold 0.5. The score drop is the classifier's score on the baseline injected
+output minus its score on the transformed one, over the injected outputs the
+transform changed. Evaded counts outputs that cross from at or above the
+threshold on the baseline to below it after the transform.
+
+| Transform | ProtectAI mean drop | ProtectAI evaded | Horizon-Labs mean drop | Horizon-Labs evaded |
+|---|---|---|---|---|
+| `framing` | -0.043 | 2 of 1520 | -0.004 | 21 of 1520 |
+| `field_split` | +0.066 | 103 of 1510 | -0.007 | 13 of 1510 |
+| `leet` | -0.104 | 19 of 1510 | -0.019 | 28 of 1510 |
+
+Observations:
+
+- No transform meaningfully evades Horizon-Labs: every mean drop is near zero or negative, and evasions stay at or below 28 of about 1,510, under 2%. The model trained on tool-output injections is not fooled by wrapping, line-splitting, or vowel substitution of readable payloads.
+- `field_split` is the one measurable degradation, and it is on the weaker model: ProtectAI's mean drop turns positive and its evasions rise to 103, about 7%. Breaking token continuity with line breaks degrades ProtectAI, and leaves Horizon-Labs unaffected.
+- A negative mean drop means the transformed text scored higher on average than the original: `framing` and `leet` make the payload read as slightly more injection-like to these models, not less.
+- deepset is not scored here. It flags nearly every text as an injection, so its baseline leaves almost no room for a score to drop; its evasion floor is a property of that behaviour rather than of the transforms.
 
 ## Bundled corpus
 
@@ -474,6 +496,7 @@ Out of scope, and limits of the results:
 - Live agents. Scenarios are AgentDojo ground-truth calls, the calls a correct or a fully hijacked agent makes, not calls observed from a running model. No attack prompt reaches a model; injection pairs assume the agent follows the injection.
 - Attack coverage. The paired corpus uses AgentDojo's `important_instructions_no_names` attack and the attack coverage corpus five more. AgentDojo's denial-of-service attacks and other `important_instructions` variants are not scored.
 - Classifier coverage. Classifier results are specific to the scored models and revisions, the 510-token windowing, the six attacks scored, and the listed thresholds.
+- Evasion transforms. The transforms are readable rewrites, so a competent agent plausibly still acts on the payload; the harness runs no agent, so the score drop measures detector brittleness to surface form, not end-to-end attack success.
 - Provenance inference. Labels come from a substring rule with the measured error shown above; deployed information-flow systems derive provenance at runtime.
 - Error model. The sweep perturbs labels independently per argument. Errors in a real tracker are correlated with the data and the tool, so the curves describe sensitivity, not the behavior of any specific tracker.
 - Egress policy. The tool classification is authored and covers data egress only; state-changing tools outside it are not controlled by `flow-guard`.
