@@ -1,7 +1,7 @@
 # agent-defense-eval
 
-![Go](https://img.shields.io/badge/Go-1.23-00ADD8?logo=go&logoColor=white)
 ![CI](https://github.com/0x71pp17/agent-defense-eval/actions/workflows/ci.yml/badge.svg)
+![Go](https://img.shields.io/badge/Go-1.23-00ADD8?logo=go&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 An evaluation harness for agent-authorization defenses. It scores any defense on
