@@ -104,3 +104,32 @@ func TestScorerKeysMatchDefenseForTransforms(t *testing.T) {
 		}
 	}
 }
+
+// The pair set and the drop must be identical across loads, so a map-iteration
+// order cannot shift the published numbers between machines.
+func TestDropIsDeterministic(t *testing.T) {
+	names := Transforms()
+	if len(names) == 0 {
+		t.Skip("no transformed corpus committed")
+	}
+	name := names[0]
+	score := func(s string) (float64, bool) { return float64(len(s)%7) / 10, true }
+	var first ScoreDrop
+	for i := 0; i < 3; i++ {
+		tc, err := LoadTransform(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		d, err := DropVsThreshold(tc, score, 0.5)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			first = d
+			continue
+		}
+		if d != first {
+			t.Fatalf("run %d differs: %+v vs %+v", i, d, first)
+		}
+	}
+}

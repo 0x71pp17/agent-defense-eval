@@ -424,8 +424,8 @@ threshold on the baseline to below it after the transform.
 | Transform | ProtectAI mean drop | ProtectAI evaded | Horizon-Labs mean drop | Horizon-Labs evaded |
 |---|---|---|---|---|
 | `framing` | -0.043 | 2 of 1520 | -0.004 | 21 of 1520 |
-| `field_split` | +0.066 | 103 of 1510 | -0.007 | 13 of 1510 |
-| `leet` | -0.104 | 19 of 1510 | -0.019 | 28 of 1510 |
+| `field_split` | +0.066 | 103 of 1510 | -0.006 | 13 of 1510 |
+| `leet` | -0.104 | 19 of 1510 | -0.018 | 28 of 1510 |
 
 Observations:
 

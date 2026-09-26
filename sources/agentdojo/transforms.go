@@ -4,6 +4,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/0x71pp17/agent-defense-eval/eval"
 )
@@ -74,7 +75,13 @@ func LoadTransform(name string) (TransformCorpus, error) {
 		return TransformCorpus{}, fmt.Errorf("corpus for %q records transform %q", name, tf.transform)
 	}
 	tc := TransformCorpus{Name: name}
-	for id, bs := range base.byID {
+	ids := make([]string, 0, len(base.byID))
+	for id := range base.byID {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		bs := base.byID[id]
 		ts, ok := tf.byID[id]
 		if !ok {
 			return TransformCorpus{}, fmt.Errorf("transform %s missing scenario %s", name, id)
