@@ -44,6 +44,7 @@ agent-defense-eval/
 │       ├── agentdojo-v1.2-pairs.json  user and injection task pairs with tool outputs
 │       ├── attacks.go         attack coverage corpus loader, linked to the paired corpus's benign tasks
 │       ├── transforms.go      evasion transform corpora loader and score-drop measurement
+│       ├── reach.go           egress-reach analysis of injection-task goals
 │       ├── transformed/       committed transformed attack corpora (one per scored transform)
 │       ├── agentdojo-v1.2-attacks.json  the same pairs under five more attacks
 │       ├── NOTICE             AgentDojo MIT attribution

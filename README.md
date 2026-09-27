@@ -434,6 +434,34 @@ Observations:
 - A negative mean drop means the transformed text scored higher on average than the original: `framing` and `leet` make the payload read as slightly more injection-like to these models, not less.
 - deepset is not scored here. It flags nearly every text as an injection, so its baseline leaves almost no room for a score to drop; its evasion floor is a property of that behaviour rather than of the transforms.
 
+## Goal coverage against the egress policy
+
+A flow-and-destination defense mediates only the tools that move data outside the
+user, its egress policy. An injection whose goal completes through other tools is
+never inspected by such a defense, whatever its provenance or destination rules.
+
+`deveval -corpus egress-reach` classifies AgentDojo's injection-task goals by
+their egress reach, using the injected tool calls, which are the same across all
+attacks:
+
+| Goal reach | Injection tasks |
+|---|---|
+| reachable only through egress tools (mediated) | 13 |
+| mixes egress and non-egress tools | 9 |
+| reachable with no egress tool (never mediated) | 4 |
+
+The 4 goals a flow-and-destination defense never inspects are `delete_file`,
+`reserve_hotel` (twice), and `update_password`. These are exactly the injection
+tasks `flow-guard` allows in the paired-corpus results: the tool-surface analysis
+and the scored results agree on the same four. The count is a property of the
+egress policy, independent of any classifier.
+
+This is the complement to the classifier results. A content classifier judges the
+text an injection places in context and is blind to a malicious destination on
+otherwise clean text; a flow-and-destination defense judges provenance and
+destination and is blind to a goal that touches no egress tool. Neither covers the
+other's gap, which is why the strongest results here come from the two together.
+
 ## Bundled corpus
 
 A small illustrative corpus of 10 scenarios ships in `eval/scenarios.go`, written
